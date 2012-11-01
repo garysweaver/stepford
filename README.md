@@ -5,7 +5,7 @@ Stepford
 
 In your Rails 3+ project, add this to your Gemfile:
 
-    gem 'stepford', :git => 'git://github.com/garysweaver/stepford.git'
+    gem 'stepford'
 
 Then run:
 
