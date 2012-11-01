@@ -14,7 +14,6 @@ Gem::Specification.new do |s|
   s.license = 'MIT'
   s.add_dependency 'thor'
   s.add_runtime_dependency 'rails'
-  s.add_runtime_dependency 'factory_girl'
   s.executables = %w(stepford)
   s.require_paths = ["lib"]
 end

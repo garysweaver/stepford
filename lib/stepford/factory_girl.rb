@@ -1,4 +1,3 @@
-require 'factory_girl'
 require 'stepford/common'
 
 module Stepford
