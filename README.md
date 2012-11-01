@@ -1,6 +1,8 @@
 Stepford
 =====
 
+Stepford is a CLI to create starter [Factory Girl][factory_girl] factories for all of your Rails models.
+
 ### Setup
 
 In your Rails 3+ project, add this to your Gemfile:
@@ -15,19 +17,29 @@ Then run:
 
 #### Factory Girl
 
-To automatically generate factories for [Factory Girl][factory_girl] from models, type this at command-line:
+The default will assume a `test/factories` directory exists and that it should create a factory file for each model:
 
     bundle exec stepford factories
 
-That will create a `test/factories` directory and put a `some_model.rb` for each model into it with a starter FactoryGirl factory definition that may or may not work for you.
-
-Or, to generate a single file with all factories in `spec/factories.rb`, you'd use:
+To put all of your factories into `spec/factories.rb`:
 
     bundle exec stepford factories --single --path spec
 
-Or it will figure it out yourself that you want a single file if the path ends in `.rb`:
+It will figure out that you want a single file, if the path ends in `.rb`:
 
     bundle exec stepford factories --path spec/support/factories.rb
+
+### Stepford Checks Model Associations
+
+Stepford first loads Rails and attempts to check your models for broken associations.
+
+If associations are deemed broken, it will output proposed changes.
+
+### Troubleshooting
+
+If you have duplicate factory definitions during Rails load, it may complain. Just move, rename, or remove the offending files and factories and retry.
+
+Uses the Ruby 1.9 hash syntax in generated factories. If you don't have 1.9, it might not fail during generation, but it may later when loading the factories.
 
 ### License
 

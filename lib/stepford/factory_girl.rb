@@ -13,9 +13,10 @@ module Stepford
         model_class = model_name.camelize.constantize
         next unless model_class.ancestors.include?(ActiveRecord::Base)
         factory = (factories[model_name.to_sym] ||= [])
+        primary_keys = Array.wrap(model_class.primary_key).collect{|pk|pk.to_sym}
         foreign_keys = []
         model_class.reflections.collect {|a,b| (expected[b.class_name.underscore.to_sym] ||= []) << model_name; foreign_keys << b.foreign_key.to_sym; "association #{b.name.to_sym.inspect}, factory: #{b.class_name.underscore.to_sym.inspect}"}.sort.each {|l|factory << l}
-        model_class.columns.collect {|c| "#{c.name.to_sym} #{Stepford::Common.value_for(c.name, c.type)}" unless foreign_keys.include?(c.name.to_sym)}.compact.sort.each {|l|factory << l}
+        model_class.columns.collect {|c| "#{c.name.to_sym} #{Stepford::Common.value_for(c.name, c.type)}" unless foreign_keys.include?(c.name.to_sym) || primary_keys.include?(c.name.to_sym)}.compact.sort.each {|l|factory << l}
       end
 
       failed = false
