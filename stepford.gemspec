@@ -8,10 +8,13 @@ Gem::Specification.new do |s|
   s.authors     = ['Gary S. Weaver']
   s.email       = ['garysweaver@gmail.com']
   s.homepage    = 'https://github.com/garysweaver/stepford'
-  s.summary     = %q{The land of Stepford comes to your Ruby testing.}
-  s.description = %q{See the README. It's more up-to-date.}
+  s.summary     = %q{A utility to assist with Ruby tests.}
+  s.description = %q{Stepford helps you with your tests. See README.}
   s.files = Dir['lib/**/*'] + ['Rakefile', 'README.md']
   s.license = 'MIT'
-  s.add_runtime_dependency 'activerecord'
+  s.add_dependency 'thor'
+  s.add_runtime_dependency 'rails'
   s.add_runtime_dependency 'factory_girl'
+  s.executables = %w(stepford)
+  s.require_paths = ["lib"]
 end
