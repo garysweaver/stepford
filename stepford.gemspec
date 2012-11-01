@@ -8,8 +8,8 @@ Gem::Specification.new do |s|
   s.authors     = ['Gary S. Weaver']
   s.email       = ['garysweaver@gmail.com']
   s.homepage    = 'https://github.com/garysweaver/stepford'
-  s.summary     = %q{A utility to assist with Ruby tests.}
-  s.description = %q{Stepford helps you with your tests. See README.}
+  s.summary     = %q{Autocreate FactoryGirl factories from models.}
+  s.description = %q{A CLI to create starter FactoryGirl factories for all of your Rails models.}
   s.files = Dir['lib/**/*'] + ['Rakefile', 'README.md']
   s.license = 'MIT'
   s.add_dependency 'thor'
