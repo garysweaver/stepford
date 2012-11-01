@@ -1,8 +1,6 @@
 Stepford
 =====
 
-*This is untested and under construction. Hoping to spend more time on it later...*
-
 ### Setup
 
 In your Rails 3+ project, add this to your Gemfile:
