@@ -3,8 +3,8 @@ require 'stepford/common'
 module Stepford
   class FactoryGirl
     def self.generate_factories(options={})
+      # guard against circular references
       factories = {}
-
       expected = {}
       Dir[File.join('app','models','*.rb').to_s].each do |filename|
         model_name = File.basename(filename).sub(/.rb$/, '')
@@ -14,7 +14,36 @@ module Stepford
         factory = (factories[model_name.to_sym] ||= [])
         primary_keys = Array.wrap(model_class.primary_key).collect{|pk|pk.to_sym}
         foreign_keys = []
-        model_class.reflections.collect {|a,b| (expected[b.class_name.underscore.to_sym] ||= []) << model_name; foreign_keys << b.foreign_key.to_sym; "association #{b.name.to_sym.inspect}, factory: #{b.class_name.underscore.to_sym.inspect}"}.sort.each {|l|factory << l}
+        ignored = []
+        after_create = []
+        association_lines = model_class.reflections.collect {|association_name, reflection|
+          (expected[reflection.class_name.underscore.to_sym] ||= []) << model_name
+          foreign_keys << reflection.foreign_key.to_sym
+          assc_sym = reflection.name.to_sym
+          clas_sym = reflection.class_name.underscore.to_sym
+          if reflection.macro == :has_many
+            ignored << clas_sym
+            after_create << "FactoryGirl.create_list #{assc_sym.inspect}, evaluator.#{clas_sym}_count, #{model_name}: #{model_name}"
+            nil
+          else
+            "association #{assc_sym.inspect}#{assc_sym != clas_sym ? ", factory: #{clas_sym.inspect}" : ''}"
+          end
+        }.compact.sort
+        if ignored.size > 0
+          factory << 'ignore do'
+          ignored.each do |name|
+            factory << "  #{name}_count 2"
+          end
+          factory << 'end'
+        end
+        association_lines.each {|l|factory << l}
+        if after_create.size > 0
+          factory << "after(:create) do |#{model_name}, evaluator|"
+          after_create.each do |line|
+            factory << "  #{line}"
+          end
+          factory << 'end'
+        end
         model_class.columns.collect {|c| "#{c.name.to_sym} #{Stepford::Common.value_for(c.name, c.type)}" unless foreign_keys.include?(c.name.to_sym) || primary_keys.include?(c.name.to_sym)}.compact.sort.each {|l|factory << l}
       end
 

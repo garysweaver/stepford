@@ -8,7 +8,13 @@ Stepford is a CLI to create starter [Factory Girl][factory_girl] factories for a
     FactoryGirl.define do
     
       factory :item do
+        ignore do
+          subpart_count 2
+        end
         association :created_by, factory: :user
+        after(:create) do |item, evaluator|
+          FactoryGirl.create_list :subparts, evaluator.subpart_count, item: item
+        end
         created_at { 2.weeks.ago }
         name 'Test Name'
         price 1.23
