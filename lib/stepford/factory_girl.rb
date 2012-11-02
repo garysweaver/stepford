@@ -6,17 +6,18 @@ module Stepford
       # guard against circular references
       factories = {}
       expected = {}
+      included_models = options[:models] ? options[:models].split(',').collect{|s|s.strip}.compact : nil
       Dir[File.join('app','models','*.rb').to_s].each do |filename|
         model_name = File.basename(filename).sub(/.rb$/, '')
+        next if included_models && !included_models.include?(model_name)
         load File.join('app','models',"#{model_name}.rb")
         model_class = model_name.camelize.constantize
         next unless model_class.ancestors.include?(ActiveRecord::Base)
         factory = (factories[model_name.to_sym] ||= [])
-        primary_keys = Array.wrap(model_class.primary_key).collect{|pk|pk.to_sym}
-        foreign_keys = []
+        excluded_attributes = Array.wrap(model_class.primary_key).collect{|pk|pk.to_sym} + [:updated_at, :created_at]
         association_lines = model_class.reflections.collect {|association_name, reflection|
           (expected[reflection.class_name.underscore.to_sym] ||= []) << model_name
-          foreign_keys << reflection.foreign_key.to_sym
+          excluded_attributes << reflection.foreign_key.to_sym
           assc_sym = reflection.name.to_sym
           clas_sym = reflection.class_name.underscore.to_sym
           # we have to do the part above to not set arbitrary values in foreign key attributes
@@ -32,7 +33,9 @@ module Stepford
             nil
           end
         }.compact.sort.each {|l|factory << l}
-        model_class.columns.collect {|c| "#{c.name.to_sym} #{Stepford::Common.value_for(c)}" unless foreign_keys.include?(c.name.to_sym) || primary_keys.include?(c.name.to_sym)}.compact.sort.each {|l|factory << l}
+        model_class.columns.collect {|c|
+          "#{c.name.to_sym} #{Stepford::Common.value_for(c)}" unless (excluded_attributes.include?(c.name.to_sym) || ((c.name.downcase.end_with?('_id') && options[:exclude_all_ids])))
+        }.compact.sort.each {|l|factory << l}
       end
 
       if options[:associations] || options[:validate_associations]
