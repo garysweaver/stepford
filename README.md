@@ -37,7 +37,7 @@ Then run:
 
 #### Factory Girl
 
-The default will assume a `test/factories` directory exists and that it should create a factory file for each model with non-primary key, non-foreign key attributes only, and no associations:
+The default will assume a `test/factories` directory exists. In that directory, it will create a factory file for each model containing example values for non-primary key, non-foreign key attributes only (no associations):
 
     bundle exec stepford factories
 
@@ -65,9 +65,9 @@ If associations are deemed broken, it will output proposed changes.
 
 If you have duplicate factory definitions during Rails load, it may complain. Just move, rename, or remove the offending files and factories and retry.
 
-Uses the Ruby 1.9 hash syntax in generated factories. If you don't have 1.9, it might not fail during generation, but it may later when loading the factories.
+Stepford produces factories that use Ruby 1.9 hash syntax. If you aren't using Ruby 1.9, it may not fail during generation, but it might later when loading the factories.
 
-If you are using STI, you'll need to manually fix the value that goes into the `type` attribute, or remove it.
+If you are using STI, you'll need to manually fix the value that goes into the `type` attribute, or you can remove those.
 
 If you specify `--associations`, you might get circular associations and could easily end up with:
 
