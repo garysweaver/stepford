@@ -7,14 +7,10 @@ Stepford is a CLI to create starter [Factory Girl][factory_girl] factories for a
 
     FactoryGirl.define do
     
-      factory :item do
-        ignore do
-          subpart_count 2
-        end
-        association :created_by, factory: :user
-        after(:create) do |item, evaluator|
-          FactoryGirl.create_list :subparts, evaluator.subpart_count, item: item
-        end
+      factory :post do
+        author
+        association :edited_by, factory: :user
+        FactoryGirl.create_list :comments, 2
         created_at { 2.weeks.ago }
         name 'Test Name'
         price 1.23
@@ -41,7 +37,7 @@ Then run:
 
 #### Factory Girl
 
-The default will assume a `test/factories` directory exists and that it should create a factory file for each model:
+The default will assume a `test/factories` directory exists and that it should create a factory file for each model with non-primary key, non-foreign key attributes only, and no associations:
 
     bundle exec stepford factories
 
@@ -53,9 +49,15 @@ It will figure out that you want a single file, if the path ends in `.rb`:
 
     bundle exec stepford factories --path spec/support/factories.rb
 
+### Associations
+
+To include associations:
+
+    bundle exec stepford factories --associations
+
 ### Stepford Checks Model Associations
 
-Stepford first loads Rails and attempts to check your models for broken associations.
+If `--associations` or `--validate_associations` is specified, Stepford first loads Rails and attempts to check your models for broken associations.
 
 If associations are deemed broken, it will output proposed changes.
 
@@ -66,6 +68,41 @@ If you have duplicate factory definitions during Rails load, it may complain. Ju
 Uses the Ruby 1.9 hash syntax in generated factories. If you don't have 1.9, it might not fail during generation, but it may later when loading the factories.
 
 If you are using STI, you'll need to manually fix the value that goes into the `type` attribute, or remove it.
+
+If you specify `--associations`, you might run into issue with circular associations, so you could easily end up with:
+
+    SystemStackError:
+      stack level too deep
+
+Some suggestions from ThoughtBot's Josh Clayton provided include using methods to generate more complex object structures:
+
+    def post_containing_comment_by_author
+      author = FactoryGirl.create(:user)
+      post = FactoryGirl.create(:post)
+      FactoryGirl.create_list(:comment, 3)
+      FactoryGirl.create(:comment, author: author, post: post)
+      post.reload
+    end
+
+or referring to created objects through associations, though he said multiple nestings get tricky:
+
+    factory :post do
+      author
+      title 'Ruby is fun'
+    end
+
+    factory :comment do
+      author
+      post
+      body 'I love Ruby too!'
+
+      trait :authored_by_post_author do
+        author { post.author }
+      end
+    end
+
+    comment = FactoryGirl.create(:comment, :authored_by_post_author)
+    comment.author == comment.post.author # true
 
 ### License
 
