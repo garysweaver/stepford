@@ -32,7 +32,7 @@ module Stepford
             nil
           end
         }.compact.sort.each {|l|factory << l}
-        model_class.columns.collect {|c| "#{c.name.to_sym} #{Stepford::Common.value_for(c.name, c.type)}" unless foreign_keys.include?(c.name.to_sym) || primary_keys.include?(c.name.to_sym)}.compact.sort.each {|l|factory << l}
+        model_class.columns.collect {|c| "#{c.name.to_sym} #{Stepford::Common.value_for(c)}" unless foreign_keys.include?(c.name.to_sym) || primary_keys.include?(c.name.to_sym)}.compact.sort.each {|l|factory << l}
       end
 
       if options[:associations] || options[:validate_associations]
