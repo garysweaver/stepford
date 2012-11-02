@@ -69,12 +69,12 @@ Uses the Ruby 1.9 hash syntax in generated factories. If you don't have 1.9, it 
 
 If you are using STI, you'll need to manually fix the value that goes into the `type` attribute, or remove it.
 
-If you specify `--associations`, you might run into issue with circular associations, so you could easily end up with:
+If you specify `--associations`, you might get circular associations and could easily end up with:
 
     SystemStackError:
       stack level too deep
 
-Some suggestions from ThoughtBot's Josh Clayton provided include using methods to generate more complex object structures:
+ThoughtBot's Josh Clayton provided some suggestions for this, including using methods to generate more complex object structures:
 
     def post_containing_comment_by_author
       author = FactoryGirl.create(:user)
