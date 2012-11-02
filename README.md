@@ -71,6 +71,18 @@ If you are using STI, you'll need to manually fix the value that goes into the `
 
 Tested with postgreSQL 9.x only.
 
+If you use stepford to create factories for existing tests and the tests fail with:
+
+     ActiveRecord::StatementInvalid:
+       PG::Error: ERROR:  null value in column "something_id" violates not-null constraint
+
+or maybe:
+
+     ActiveRecord::RecordInvalid:
+       Validation failed: Item The item is required., Pricer The pricer is required., Purchased by A purchaser is required.
+
+you might either need to modify those factories to set associations that are required or specify `--associations` in stepford to attempt generate them.
+
 If you specify `--associations`, you might get circular associations and could easily end up with:
 
     SystemStackError:

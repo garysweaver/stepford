@@ -2,7 +2,7 @@ module Stepford
   class Common
     def self.value_for(column)
       case column.type
-      when :string
+      when :string, :text
         if column.default.nil?
           result = "Test #{column.name.titleize}"
           column.limit && column.limit < result.size ? (column.limit >= 0 ? "'#{'a' * column.limit}'" : 'nil') : "'#{result}'"
@@ -11,22 +11,21 @@ module Stepford
         end
       when :integer
         column.default.nil? ? (column.limit ? column.limit.to_s : '123') : column.default.to_s
-      when :decimal
+      when :decimal, :float
         column.default.nil? ? (column.limit ? column.limit.to_s : '1.23') : column.default.to_s
-      when :datetime
-        '{ 2.weeks.ago }'
-      when :timestamp
+      when :date, :datetime, :timestamp
         '{ 2.weeks.ago }'
       when :binary
         column.default.nil? ? (column.limit ? column.limit.to_s : '0b010101') : column.default.to_s
       when :boolean
         column.default.nil? ? 'true' : column.default.to_s
       when :xml
-        '<test>Test #{column_name.titleize}</test>'
+        column.default.nil? ? '<test>Test #{column_name.titleize}</test>' : column.default.to_s
       when :ts_vector
-        'nil'
+        column.default.nil? ? 'nil' : column.default.to_s
       else
-        'nil'
+        puts "Stepford does not know how to handle type #{column.type.to_sym}"
+        column.default.nil? ? 'nil' : column.default.to_s
       end
     end
   end
