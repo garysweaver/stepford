@@ -69,6 +69,8 @@ Stepford produces factories that use Ruby 1.9 hash syntax. If you aren't using R
 
 If you are using STI, you'll need to manually fix the value that goes into the `type` attribute, or you can remove those.
 
+Tested with postgreSQL 9.x only.
+
 If you specify `--associations`, you might get circular associations and could easily end up with:
 
     SystemStackError:
