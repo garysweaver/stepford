@@ -95,6 +95,10 @@ Specify `--models` and a comma-delimited list of models to only output the model
 
     bundle exec stepford factories --path spec/support/put_into_factories.rb --models foo,bar,foo_bar
 
+##### Testing Factories
+
+See [Testing all Factories (with RSpec)][test_factories] in the FG wiki.
+
 ##### Troubleshooting
 
 If you have duplicate factory definitions during Rails load, it may complain. Just move, rename, or remove the offending files and factories and retry.
@@ -122,7 +126,9 @@ If you specify `--associations`, you might get circular associations and could e
     SystemStackError:
       stack level too deep
 
-ThoughtBot's Josh Clayton provided some suggestions for this, including using methods to generate more complex object structures:
+One way to do it would be to [return singleton instances from factory create][singletons], which would require some changes to the factories.
+
+ThoughtBot's Josh Clayton also provided some suggestions for this, including using methods to generate more complex object structures:
 
     def post_containing_comment_by_author
       author = FactoryGirl.create(:user)
@@ -156,5 +162,7 @@ or referring to created objects through associations, though he said multiple ne
 
 Copyright (c) 2012 Gary S. Weaver, released under the [MIT license][lic].
 
+[singletons]: http://stackoverflow.com/questions/2015473/using-factory-girl-in-rails-with-associations-that-have-unique-constraints-gett/3569062#3569062
+[test_factories]: https://github.com/thoughtbot/factory_girl/wiki/Testing-all-Factories-%28with-RSpec%29
 [factory_girl]: https://github.com/thoughtbot/factory_girl/
 [lic]: http://github.com/garysweaver/stepford/blob/master/LICENSE
