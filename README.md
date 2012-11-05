@@ -89,6 +89,10 @@ If associations are deemed broken, it will output proposed changes.
 
 If working with a legacy schema, you may have models with foreign_key columns that you don't have associations defined for in the model. If that is the case, we don't want to assign arbitrary integers to them and try to create a record. If that is the case, try `--exclude-all-ids`, which will exclude those ids as attributes defined in the factories and you can add associations as needed to get things working.
 
+##### Singleton Values
+
+Use `--cache-associations` to store and use factories to avoid 'stack level too deep' errors.
+
 ##### Specifying Models
 
 Specify `--models` and a comma-delimited list of models to only output the models you specify. If you don't want to overwrite existing factory files, you should direct the output to another file and manually copy each in:
@@ -121,12 +125,10 @@ or maybe:
 
 you might either need to modify those factories to set associations that are required or specify `--associations` in Stepford to attempt generate them.
 
-If you specify `--associations`, you might get circular associations and could easily end up with:
+Without `--cache-associations`, you might get circular associations and could easily end up with:
 
     SystemStackError:
       stack level too deep
-
-One way to do it would be to [return singleton instances from factory create][singletons], which would require some changes to the factories.
 
 ThoughtBot's Josh Clayton also provided some suggestions for this, including using methods to generate more complex object structures:
 

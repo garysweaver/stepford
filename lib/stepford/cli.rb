@@ -11,7 +11,8 @@ module Stepford
     method_option :models, :desc => "A comma delimited list of only the models you want to include"
     method_option :attributes, :desc => "Include all attributes except foreign keys and primary keys, not just those that are required due to ActiveRecord presence validation or column not null restriction", :type => :boolean
     method_option :attribute_traits, :desc => "Include traits for attributes that would be output with --attributes that wouldn't be otherwise when --attributes is not specified", :type => :boolean
-    method_option :association_traits, :desc => "Include traits for attributes that would be output with --associations that wouldn't be otherwise when --associations is not specified", :type => :boolean
+    method_option :association_traits, :desc => "Include traits for associations that would be output with --associations that wouldn't be otherwise when --associations is not specified", :type => :boolean
+    method_option :cache_associations, :desc => "Use singleton values to avoid 'stack level too deep' circular reference(s)", :type => :boolean    
     def factories()
       # load Rails environment
       require './config/environment'
