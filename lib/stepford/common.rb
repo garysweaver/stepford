@@ -20,7 +20,7 @@ module Stepford
       when :boolean
         column.default.nil? ? 'true' : column.default.to_s
       when :xml
-        column.default.nil? ? '<test>Test #{column_name.titleize}</test>' : column.default.to_s
+        column.default.nil? ? '<test>Test #{column.name.titleize}</test>' : column.default.to_s
       when :ts_vector
         column.default.nil? ? 'nil' : column.default.to_s
       else

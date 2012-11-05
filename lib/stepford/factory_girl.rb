@@ -17,25 +17,36 @@ module Stepford
         excluded_attributes = Array.wrap(model_class.primary_key).collect{|pk|pk.to_sym} + [:updated_at, :created_at]
         association_lines = model_class.reflections.collect {|association_name, reflection|
           (expected[reflection.class_name.underscore.to_sym] ||= []) << model_name
-          excluded_attributes << reflection.foreign_key.to_sym
+          excluded_attributes << reflection.foreign_key.to_sym if reflection.foreign_key
           assc_sym = reflection.name.to_sym
           clas_sym = reflection.class_name.underscore.to_sym
-          # we have to do the part above to not set arbitrary values in foreign key attributes
-          if options[:associations]
+          # if has a foreign key, then if NOT NULL or is a presence validate, the association is required and should be output. unfortunately this could mean a circular reference that will have to be manually fixed
+          required = reflection.foreign_key ? (model_class.validators_on(assc_sym).collect{|v|v.class}.include?(ActiveModel::Validations::PresenceValidator) || model_class.columns.any?{|c| !c.null && c.name.to_sym == reflection.foreign_key.to_sym}) : false
+          should_be_trait = !(options[:associations] || required) && options[:association_traits]
+          if options[:associations] || required || should_be_trait
             if reflection.macro == :has_many
-              "FactoryGirl.create_list #{assc_sym.inspect}, 2"
+              "#{should_be_trait ? "trait #{"with_#{assc_sym}".to_sym.inspect} do; " : ''}#{should_be_trait ? '' : '#'}FactoryGirl.create_list #{clas_sym.inspect}, 2#{should_be_trait ? '; end' : ''}#{should_be_trait ? '' : ' # commented to avoid circular reference'}"
             elsif assc_sym != clas_sym
-              "association #{assc_sym.inspect}#{assc_sym != clas_sym ? ", factory: #{clas_sym.inspect}" : ''}"
+              "#{should_be_trait ? "trait #{"with_#{assc_sym}".to_sym.inspect} do; " : ''}#{(should_be_trait || reflection.macro == :belongs_to) ? '' : '#'}association #{assc_sym.inspect}#{assc_sym != clas_sym ? ", factory: #{clas_sym.inspect}" : ''}#{should_be_trait ? '; end' : ''}#{should_be_trait || reflection.macro == :belongs_to ? '' : ' # commented to avoid circular reference'}"
             else
-              "#{assc_sym}"
+              "#{should_be_trait ? "trait #{"with_#{assc_sym}".to_sym.inspect} do; " : ''}#{(should_be_trait || reflection.macro == :belongs_to) ? '' : '#'}#{assc_sym}#{should_be_trait ? '; end' : ''}#{should_be_trait || reflection.macro == :belongs_to ? '' : ' # commented to avoid circular reference'}"
             end
           else
             nil
           end
         }.compact.sort.each {|l|factory << l}
-        model_class.columns.collect {|c|
-          "#{c.name.to_sym} #{Stepford::Common.value_for(c)}" unless (excluded_attributes.include?(c.name.to_sym) || ((c.name.downcase.end_with?('_id') && options[:exclude_all_ids])))
-        }.compact.sort.each {|l|factory << l}
+        model_class.columns.sort_by {|c|[c.name]}.each {|c|
+          if !excluded_attributes.include?(c.name.to_sym) && !(c.name.downcase.end_with?('_id') && options[:exclude_all_ids]) && (options[:attributes] || !c.null)
+            factory << "#{c.name} #{Stepford::Common.value_for(c)}"
+          elsif options[:attribute_traits]
+            if c.type == :boolean
+              factory << "trait #{c.name.underscore.to_sym.inspect} do; #{c.name} true; end"
+              factory << "trait #{"not_#{c.name.underscore}".to_sym.inspect} do; #{c.name} false; end"
+            else
+              factory << "trait #{"with_#{c.name.underscore}".to_sym.inspect} do; #{c.name} #{Stepford::Common.value_for(c)}; end"
+            end
+          end
+        }
       end
 
       if options[:associations] || options[:validate_associations]

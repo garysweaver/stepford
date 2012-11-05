@@ -11,9 +11,13 @@ Stepford is a CLI to create starter [Factory Girl][factory_girl] factories for a
         author
         association :edited_by, factory: :user
         FactoryGirl.create_list :comments, 2
+        trait :with_notes do; FactoryGirl.create_list :note, 2; end
+        trait :complete do; complete true; end
+        trait :not_complete do; complete false; end
         created_at { 2.weeks.ago }
         name 'Test Name'
         price 1.23
+        trait :with_summary do; template 'Test Summary'; end
         updated_at { 2.weeks.ago }
       end
 
@@ -37,6 +41,16 @@ Then run:
 
 #### Factory Girl
 
+##### How NOT NULL, and Other Database Constraints and Active Record Validations Are Handled
+
+If the ActiveRecord column `null` property for the attribute is true for the attribute or foreign key for the association, or if there is a presence validator for an attribute or foreign key for the association, then that attribute or association will be defined by the default factory.
+
+Currently uniqueness constraints are ignored and must be handled by FactoryGirl sequence or similar if not automatically populated by your model or the database, e.g. in your factory, if username uniqueness is enforced by a unique constraint on the database-side, you'll need to do something like this manually in the factory:
+
+    sequence(:username) {|n| "user#{n}" }
+
+##### Creating Factories
+
 The default will assume a `test/factories` directory exists. In that directory, it will create a factory file for each model containing example values for all attributes except primary keys, foreign keys, created_at, and updated_at:
 
     bundle exec stepford factories
@@ -49,29 +63,39 @@ It will figure out that you want a single file, if the path ends in `.rb`:
 
     bundle exec stepford factories --path spec/support/factories.rb
 
-### Associations
+##### Traits
 
-To include associations:
+To generate traits for each attribute that would be included with `--attributes`, but isn't because `--attributes` is not specified:
+
+    bundle exec stepford factories --attribute-traits
+
+To generate traits for each association that would be included with `--associations`, but isn't because `--associations` is not specified:
+
+    bundle exec stepford factories --association-traits
+
+##### Associations
+
+To include all associations even if they aren't deemed to be required by not null ActiveRecord constraints defined in the model:
 
     bundle exec stepford factories --associations
 
-### Stepford Checks Model Associations
+##### Stepford Checks Model Associations
 
 If `--associations` or `--validate-associations` is specified, Stepford first loads Rails and attempts to check your models for broken associations.
 
 If associations are deemed broken, it will output proposed changes.
 
-### No IDs
+##### No IDs
 
 If working with a legacy schema, you may have models with foreign_key columns that you don't have associations defined for in the model. If that is the case, we don't want to assign arbitrary integers to them and try to create a record. If that is the case, try `--exclude-all-ids`, which will exclude those ids as attributes defined in the factories and you can add associations as needed to get things working.
 
-### Specifying Models
+##### Specifying Models
 
 Specify `--models` and a comma-delimited list of models to only output the models you specify. If you don't want to overwrite existing factory files, you should direct the output to another file and manually copy each in:
 
     bundle exec stepford factories --path spec/support/put_into_factories.rb --models foo,bar,foo_bar
 
-### Troubleshooting
+##### Troubleshooting
 
 If you have duplicate factory definitions during Rails load, it may complain. Just move, rename, or remove the offending files and factories and retry.
 
