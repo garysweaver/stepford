@@ -105,6 +105,8 @@ You might want to add a global after to clear cache. In RSpec, you'd add this to
       end
     end
 
+Note: Stepford v0.8.2 has an issue where it infinitely recurses if A requires B which requires C which requires A which I'm working on. It just needs to cache on its own, I guess.
+
 ##### RSpec Helpers
 
 Put this in your `spec/spec_helper.rb`:
