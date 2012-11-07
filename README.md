@@ -1,7 +1,26 @@
 Stepford
 =====
 
-Stepford is a CLI to create starter [Factory Girl][factory_girl] factories for all of your Rails models, e.g.
+Stepford is a wrapper and generator for FactoryGirl to automate stuff and make it easier to use.
+
+Stepford::FactoryGirl automatically recursively creates/builds/stubbed factories for null=false and/or presence validated associations. It also lets you specify method name and arguments/options to factory girl for associations.
+
+e.g. if the following is required:
+* Bar has a required association called house_special which uses the :beer factory, and we have a block we want to send into it
+* Beer has specials that you want to build as a list of 3 using the :tuesday_special_offer factory
+
+then you could set that up like this:
+
+    Stepford::FactoryGirl.create_list(:bar, with_factory_options: {
+      house_special: [:create, :beer, {blk: ->(beer) do; beer.bubbles.create(attributes_for(:bubbles)); end}],
+      specials: [:build_list, :tuesday_special_offer, 3]
+    }) do
+      # any block you would send to FactoryGirl.create_list(:foo) would go here
+    end
+
+The `Stepford` CLI command will generate your factories.rb or multiple factory files for you.
+
+e.g. maybe one of your models is called post, then you could generate a factory for post and all of the other models with a one-liner, maybe with the following in the `some/path/factories/post.rb` file:
 
     require 'factory_girl_rails'
 
@@ -23,6 +42,8 @@ Stepford is a CLI to create starter [Factory Girl][factory_girl] factories for a
 
     end
 
+and also let
+
 ### Setup
 
 In your Rails 3+ project, add this to your Gemfile:
@@ -39,7 +60,64 @@ Then run:
 
 ### Usage
 
-#### Factory Girl
+#### Factory Girl Wrapper
+
+##### Standard
+
+Stepford::FactoryGirl acts just like FactoryGirl, but it goes through all the null=false associations in the factory and/or its presence validated associations and attempts to create/build/build_stub depending on what you called originally, but also lets you pass in an `:with_factory_options` that can contain a hash of factory name symbols to the arguments and block you'd pass to it. You specify the block using a `:blk` option with a proc/lambda (probably a lambda) to use in that method.
+
+If you don't specify options, it's easy. If Foo requires Bar and Bar requires a list of Foobars and a Barfoo, and you have factories for each of those, you'd only have to do:
+
+    Stepford::FactoryGirl.create_list(:foo, 5)
+
+and that would create a list of 5 Foos, that each have a Bar, where each Bar has a list of 2 Foobars and a Barfoo. Easy!
+
+But, you might want to specify traits, and certain attributes or associations or a block or different methods to use. That's pretty easy, too. Let's say you only need to tweak bar and foobar on each item, but the rest gets created as it would with just `Stepford::FactoryGirl.create_list`, so if you wanted to create 5 with two traits `:fancy` and `:light` and only build the bar and build bar's foobar as a stub:
+
+    Stepford::FactoryGirl.create_list(:foo, 5, :fancy, :light, with_factory_options: {
+      bar: [:build, :bar],
+      foobar: [:build_stubbed, :foobar]
+    }) do
+      # any block you would send to FactoryGirl.create_list(:foo) would go here
+    end
+
+##### Cached
+
+In your Gemfile:
+
+    require 'factory_girl-cache'
+
+Then:
+
+    bundle install
+
+In your `spec/spec_helper.rb`, add:
+
+    require 'stepford/factory_girl_cache'
+
+It works just about the same as `Stepford::FactoryGirl` except it is called `Stepford::FactoryGirlCache` and acts more like `FactoryGirlCache`.
+
+##### RSpec Helpers
+
+`Stepford::FactoryGirl` and `Stepford::FactoryGirlCache` are a lot to type.
+
+Instead put this in your `spec/spec_helper.rb`:
+
+    require 'stepford/factory_girl_rspec_helpers'
+
+Then you can just use `create`, `create_list`, `build`, `build_list`, or `build_stubbed` in your rspec tests (`create` becomes a shortcut for `::Stepford::FactoryGirl.create`, etc.):
+
+    create(:foo)
+
+For the cached version, add this to `spec/spec_helper.rb`:
+
+    require 'stepford/factory_girl_cache_rspec_helpers'
+
+Then you can just use `cache_create`, `cache_create_list`, `cache_build`, `cache_build_list`, or `cache_build_stubbed` in your rspec tests (`cache_create` becomes a shortcut for `::Stepford::FactoryGirlCache.create`, etc.):
+
+    cache_create(:foo)
+
+#### Factory Girl CLI
 
 ##### How NOT NULL, and Other Database Constraints and Active Record Validations Are Handled
 
@@ -89,7 +167,11 @@ If associations are deemed broken, it will output proposed changes.
 
 If working with a legacy schema, you may have models with foreign_key columns that you don't have associations defined for in the model. If that is the case, we don't want to assign arbitrary integers to them and try to create a record. If that is the case, try `--exclude-all-ids`, which will exclude those ids as attributes defined in the factories and you can add associations as needed to get things working.
 
-##### Singleton Values
+##### Ignored Required Assocations
+
+With `--ignore-required-associations` it won't include NOT NULL foreign key associations or presence validated associations by default.
+
+##### Cache Associations
 
 Use `--cache-associations` to store and use factories to avoid 'stack level too deep' errors.
 

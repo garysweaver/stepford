@@ -15,10 +15,10 @@ module Stepford
   #   }) do
   #     # the block you would send to FactoryGirl.create_list(:foo) would go here
   #   end
-  module FactoryGirl
+  module FactoryGirlCache
     class << self
       def method_missing(m, *args, &block)
-        puts "Stepford::FactoryGirl.#{m}(#{args.inspect})"
+        puts "Stepford::FactoryGirlCache.#{m}(#{args.inspect})"
         stepford_command_options = {}
         args = args.dup # need local version because we'll be dup'ing the options hash to add things to set prior to create/build
         options = args.last
@@ -37,11 +37,11 @@ module Stepford
           # value is *args (array and possible hash)
           key_to_method_args_and_options = stepford_command_options[:with_factory_options]
 
-          # call Stepford::FactoryGirl.* on any not null associations recursively
+          # call Stepford::FactoryGirlCache.* on any not null associations recursively, and create an options hash with those as values, if not already passed in
           model_class = args[0].to_s.camelize.constantize
           model_class.reflections.each do |association_name, reflection|
             assc_sym = reflection.name.to_sym
-            next if options[assc_sym]
+            next if options[assc_sym]            
             clas_sym = reflection.class_name.underscore.to_sym
             has_presence_validator = model_class.validators_on(assc_sym).collect{|v|v.class}.include?(::ActiveModel::Validations::PresenceValidator)
             required = reflection.foreign_key ? (has_presence_validator || model_class.columns.any?{|c| !c.null && c.name.to_sym == reflection.foreign_key.to_sym}) : false
@@ -52,40 +52,40 @@ module Stepford
                 method_options = args.last
                 blk = method_options.is_a?(Hash) ? method_args_and_options.delete(:blk) : nil
                 if blk
-                  puts "FactoryGirl.__send__(#{method_args_and_options.inspect}, &blk)"
-                  options[assc_sym] = ::FactoryGirl.__send__(*method_args_and_options, &blk)
+                  puts "FactoryGirlCache.__send__(#{method_args_and_options.inspect}, &blk)"
+                  options[assc_sym] = ::FactoryGirlCache.__send__(*method_args_and_options, &blk)
                 else
-                  puts "FactoryGirl.__send__(#{method_args_and_options.inspect})"
-                  options[assc_sym] = ::FactoryGirl.__send__(*method_args_and_options)
+                  puts "FactoryGirlCache.__send__(#{method_args_and_options.inspect})"
+                  options[assc_sym] = ::FactoryGirlCache.__send__(*method_args_and_options)
                 end
               else
                 if reflection.macro == :has_many
                   case m
                   when :create, :create_list
-                    options[assc_sym] = ::Stepford::FactoryGirl.create_list(*[clas_sym, 2, stepford_command_options])
+                    options[assc_sym] = ::Stepford::FactoryGirlCache.create_list(*[clas_sym, 2, stepford_command_options])
                   when :build, :build_list
-                    options[assc_sym] = ::Stepford::FactoryGirl.build_list(*[clas_sym, 2, stepford_command_options])
+                    options[assc_sym] = ::Stepford::FactoryGirlCache.build_list(*[clas_sym, 2, stepford_command_options])
                   when :build_stubbed
                     #TODO: need to test building something stubbed that has a PresenceValidator on a has_many
-                    options[assc_sym] = ::Stepford::FactoryGirl.build_stubbed(*[clas_sym, stepford_command_options])
+                    options[assc_sym] = ::Stepford::FactoryGirlCache.build_stubbed(*[clas_sym, stepford_command_options])
                   end                
                 else
                   case m
                   when :create, :create_list
-                    options[assc_sym] = ::Stepford::FactoryGirl.create(*[clas_sym, stepford_command_options])
+                    options[assc_sym] = ::Stepford::FactoryGirlCache.create(*[clas_sym, stepford_command_options])
                   when :build, :build_list
-                    options[assc_sym] = ::Stepford::FactoryGirl.build(*[clas_sym, stepford_command_options])
+                    options[assc_sym] = ::Stepford::FactoryGirlCache.build(*[clas_sym, stepford_command_options])
                   when :build_stubbed
-                    options[assc_sym] = ::Stepford::FactoryGirl.build_stubbed(*[clas_sym, stepford_command_options])
+                    options[assc_sym] = ::Stepford::FactoryGirlCache.build_stubbed(*[clas_sym, stepford_command_options])
                   end
                 end
               end
             end
           end
         end
-
-        puts "FactoryGirl.__send__(#{([m] + Array.wrap(args)).inspect}, &block)"        
-        ::FactoryGirl.__send__(m, *args, &block)
+        
+        puts "FactoryGirlCache.__send__(#{([m] + Array.wrap(args)).inspect}, &block)"
+        ::FactoryGirlCache.__send__(m, *args, &block)
       end
     end
   end
