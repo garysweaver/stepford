@@ -22,8 +22,8 @@ module Stepford
           # if has a foreign key, then if NOT NULL or is a presence validate, the association is required and should be output. unfortunately this could mean a circular reference that will have to be manually fixed
           has_presence_validator = model_class.validators_on(assc_sym).collect{|v|v.class}.include?(ActiveModel::Validations::PresenceValidator)
           required = reflection.foreign_key ? (has_presence_validator || model_class.columns.any?{|c| !c.null && c.name.to_sym == reflection.foreign_key.to_sym}) : false
-          should_be_trait = !(options[:associations] || (!options[:ignore_required] && required)) && options[:association_traits]
-          if options[:associations] || (!options[:ignore_required_associations] && required) || should_be_trait
+          should_be_trait = !(options[:associations] || (options[:include_required_associations] && required)) && options[:association_traits]
+          if options[:associations] || (options[:include_required_associations] && required) || should_be_trait
             if options[:cache_associations]
               if reflection.macro == :has_many
                 is_default_plural_association_name = (clas_sym.to_s.pluralize.to_sym == assc_sym)
@@ -133,10 +133,10 @@ module Stepford
         if options[:path].end_with?('.rb')
           path = options[:path]
         else
-          if options[:single]
-            path = File.join(options[:path],'factories.rb')
-          else
+          if options[:multiple]
             path = options[:path]
+          else
+            path = File.join(options[:path],'factories.rb')
           end
         end
       end

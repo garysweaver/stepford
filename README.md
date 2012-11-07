@@ -99,9 +99,7 @@ It works just about the same as `Stepford::FactoryGirl` except it is called `Ste
 
 ##### RSpec Helpers
 
-`Stepford::FactoryGirl` and `Stepford::FactoryGirlCache` are a lot to type.
-
-Instead put this in your `spec/spec_helper.rb`:
+Put this in your `spec/spec_helper.rb`:
 
     require 'stepford/factory_girl_rspec_helpers'
 
@@ -117,29 +115,37 @@ Then you can just use `cache_create`, `cache_create_list`, `cache_build`, `cache
 
     cache_create(:foo)
 
-#### Factory Girl CLI
+#### CLI
 
-##### How NOT NULL, and Other Database Constraints and Active Record Validations Are Handled
-
-If the ActiveRecord column `null` property for the attribute is true for the attribute or foreign key for the association, or if there is a presence validator for an attribute or foreign key for the association, then that attribute or association will be defined by the default factory.
-
-Currently uniqueness constraints are ignored and must be handled by FactoryGirl sequence or similar if not automatically populated by your model or the database, e.g. in your factory, if username uniqueness is enforced by a unique constraint on the database-side, you'll need to do something like this manually in the factory:
-
-    sequence(:username) {|n| "user#{n}" }
+Stepford has a CLI to automatically create your factories file(s).
 
 ##### Creating Factories
 
-The default will assume a `test/factories` directory exists. In that directory, it will create a factory file for each model containing example values for all attributes except primary keys, foreign keys, created_at, and updated_at:
+Autogenerate `test/factories.rb` from all model files in `app/models`:
 
     bundle exec stepford factories
 
+If you want one file per model, use `--multiple`. The default path is `test/factories`, which it assumes exists. In that directory, it will create a factory file for each model. If you want separate factory files in `spec/factories`, you'd use:
+
+    bundle exec stepford factories --path spec/factories --multiple
+
+##### RSpec
+
 To put all of your factories into `spec/factories.rb`:
 
-    bundle exec stepford factories --single --path spec
+    bundle exec stepford factories --path spec
 
-It will figure out that you want a single file, if the path ends in `.rb`:
+This also works:
 
     bundle exec stepford factories --path spec/support/factories.rb
+
+##### Specifying Models
+
+By default, Stepford processes all models found in `app/models`.
+
+Specify `--models` and a comma-delimited list of models to only output the models you specify. If you don't want to overwrite existing factory files, you should direct the output to another file and manually copy each in:
+
+    bundle exec stepford factories --path spec/support/put_into_factories.rb --models foo,bar,foo_bar
 
 ##### Traits
 
@@ -153,27 +159,29 @@ To generate traits for each association that would be included with `--associati
 
 ##### Associations
 
+Associations in FactoryGirl aren't that great. There are factory interdependence issues (one factory requires another that requires it, etc.- that doesn't work that well) when you don't use `after(:create)` or `after(:build)`, and those don't work if you presence validate the associations or their foreign_keys have NOT NULL.
+
+However, if you don't have anything that complex or don't mind hand-editing the factories to try to fix issues, go for it. Here are the related methods.
+
+###### Include All Associations
+
 To include all associations even if they aren't deemed to be required by not null ActiveRecord constraints defined in the model:
 
     bundle exec stepford factories --associations
 
-##### Stepford Checks Model Associations
+###### Stepford Checks Model Associations
 
 If `--associations` or `--validate-associations` is specified, Stepford first loads Rails and attempts to check your models for broken associations.
 
 If associations are deemed broken, it will output proposed changes.
 
-##### No IDs
+###### Include Required Assocations
 
-If working with a legacy schema, you may have models with foreign_key columns that you don't have associations defined for in the model. If that is the case, we don't want to assign arbitrary integers to them and try to create a record. If that is the case, try `--exclude-all-ids`, which will exclude those ids as attributes defined in the factories and you can add associations as needed to get things working.
+With `--include-required-associations` it will include NOT NULL foreign key associations or presence validated associations.
 
-##### Ignored Required Assocations
+###### Cache Associations
 
-With `--ignore-required-associations` it won't include NOT NULL foreign key associations or presence validated associations by default.
-
-##### Cache Associations
-
-Use `--cache-associations` to store and use factories to avoid 'stack level too deep' errors.
+Use `--cache-associations` will use the .
 
 This uses the [factory_girl-cache][factory_girl-cache] gem in the autogenerated factories, so you will need to include it also in your Gemfile:
 
@@ -183,11 +191,17 @@ and
 
     bundle install
 
-##### Specifying Models
+##### No IDs
 
-Specify `--models` and a comma-delimited list of models to only output the models you specify. If you don't want to overwrite existing factory files, you should direct the output to another file and manually copy each in:
+If working with a legacy schema, you may have models with foreign_key columns that you don't have associations defined for in the model. If that is the case, we don't want to assign arbitrary integers to them and try to create a record. If that is the case, try `--exclude-all-ids`, which will exclude those ids as attributes defined in the factories and you can add associations as needed to get things working.
 
-    bundle exec stepford factories --path spec/support/put_into_factories.rb --models foo,bar,foo_bar
+##### How NOT NULL, and Other Database Constraints and Active Record Validations Are Handled
+
+If the ActiveRecord column `null` property for the attribute is true for the attribute or foreign key for the association, or if there is a presence validator for an attribute or foreign key for the association, then that attribute or association will be defined by the default factory.
+
+Currently uniqueness constraints are ignored and must be handled by FactoryGirl sequence or similar if not automatically populated by your model or the database, e.g. in your factory, if username uniqueness is enforced by a unique constraint on the database-side, you'll need to do something like this manually in the factory:
+
+    sequence(:username) {|n| "user#{n}" }
 
 ##### Testing Factories
 
