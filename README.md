@@ -1,15 +1,15 @@
 Stepford
 =====
 
-Stepford is a wrapper and generator for FactoryGirl to automate stuff and make it easier to use.
+Stepford is a wrapper and generator for [FactoryGirl][factory_girl] and [FactoryGirl Cache][factory_girl-cache] to automate stuff and make it easier to use.
 
-Stepford::FactoryGirl automatically recursively creates/builds/stubbed factories for null=false and/or presence validated associations. It also lets you specify method name and arguments/options to factory girl for associations.
+`Stepford::FactoryGirl` (and there is a short rspec helper) automatically recursively creates/builds/stubbed factories for null=false and/or presence validated associations. It also lets you specify method name and arguments/options to FactoryGirl for associations.
 
 e.g. if the following is required:
 * Bar has a required association called house_special which uses the :beer factory, and we have a block we want to send into it
 * Beer has specials that you want to build as a list of 3 using the :tuesday_special_offer factory
 
-then you could set that up like this:
+you could set that up like this:
 
     Stepford::FactoryGirl.create_list(:bar, with_factory_options: {
       house_special: [:create, :beer, {blk: ->(beer) do; beer.bubbles.create(attributes_for(:bubbles)); end}],
@@ -18,7 +18,7 @@ then you could set that up like this:
       # any block you would send to FactoryGirl.create_list(:foo) would go here
     end
 
-The `Stepford` CLI command will generate your factories.rb or multiple factory files for you.
+The Stepford CLI command will generate your factories.rb or multiple factory files for you.
 
 e.g. maybe one of your models is called post, then you could generate a factory for post and all of the other models with a one-liner, maybe with the following in the `some/path/factories/post.rb` file:
 
@@ -41,8 +41,6 @@ e.g. maybe one of your models is called post, then you could generate a factory 
       end
 
     end
-
-and also let
 
 ### Setup
 
@@ -117,7 +115,7 @@ Then you can just use `cache_create`, `cache_create_list`, `cache_build`, `cache
 
 #### CLI
 
-Stepford has a CLI to automatically create your factories file(s).
+Stepford has a CLI generator to automatically create your factories file(s).
 
 ##### Creating Factories
 
