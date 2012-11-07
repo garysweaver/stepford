@@ -95,6 +95,16 @@ In your `spec/spec_helper.rb`, add:
 
 It works just about the same as `Stepford::FactoryGirl` except it is called `Stepford::FactoryGirlCache` and acts more like `FactoryGirlCache`.
 
+Be sure to read the documentation at [factory_girl-cache][factory_girl-cache].
+
+You might want to add a global after to clear cache. In RSpec, you'd add this to `spec/spec_helper.rb`:
+
+    Spec::Runner.configure do |config|
+      config.after(:each) do
+        FactoryGirlCache.clear
+      end
+    end
+
 ##### RSpec Helpers
 
 Put this in your `spec/spec_helper.rb`:
