@@ -24,25 +24,16 @@ module Stepford
           required = reflection.foreign_key ? (has_presence_validator || model_class.columns.any?{|c| !c.null && c.name.to_sym == reflection.foreign_key.to_sym}) : false
           should_be_trait = !(options[:associations] || (options[:include_required_associations] && required)) && options[:association_traits]
           if options[:associations] || (options[:include_required_associations] && required) || should_be_trait
-            if options[:cache_associations]
-              if reflection.macro == :has_many
-                is_default_plural_association_name = (clas_sym.to_s.pluralize.to_sym == assc_sym)
-                "#{should_be_trait ? "trait #{"with_#{assc_sym}".to_sym.inspect} do; " : ''}after(:create) do |user, evaluator|; #{is_reserved?(assc_sym) ? 'self.' : ''}#{assc_sym} = FactoryGirlCache.create_list(#{clas_sym.inspect}#{is_default_plural_association_name ? '' : ", #{assc_sym.inspect}"}, 2); end#{should_be_trait ? '; end' : ''}"
-              else
-                "#{should_be_trait ? "trait #{"with_#{assc_sym}".to_sym.inspect} do; " : ''}#{is_reserved?(assc_sym) ? 'self.' : ''}#{assc_sym} = FactoryGirlCache.create(#{clas_sym.inspect}#{clas_sym == assc_sym ? '' : ", #{assc_sym.inspect}"})#{should_be_trait ? '; end' : ''}"
-              end
+            if reflection.macro == :has_many
+              # In factory girl v4.1.0:
+              # create_list must be done in an after(:create) or you get Trait not registered or Factory not registered errors.
+              # this means that validators that verify presence or size > 0 in a association list will not work with this method, and you'll need to
+              # use build, not create: http://stackoverflow.com/questions/11209347/has-many-with-at-least-two-entries
+              "#{should_be_trait ? "trait #{"with_#{assc_sym}".to_sym.inspect} do; " : ''}#{should_be_trait || has_presence_validator ? '' : '#'}after(:create) do |user, evaluator|; FactoryGirl.create_list #{clas_sym.inspect}, 2; end#{should_be_trait ? '; end' : ''}#{should_be_trait ? '' : ' # commented to avoid circular reference'}"
+            elsif assc_sym != clas_sym
+              "#{should_be_trait ? "trait #{"with_#{assc_sym}".to_sym.inspect} do; " : ''}#{should_be_trait || reflection.macro == :belongs_to || has_presence_validator ? '' : '#'}association #{assc_sym.inspect}#{assc_sym != clas_sym ? ", factory: #{clas_sym.inspect}" : ''}#{should_be_trait ? '; end' : ''}#{should_be_trait || reflection.macro == :belongs_to ? '' : ' # commented to avoid circular reference'}"
             else
-              if reflection.macro == :has_many
-                # In factory girl v4.1.0:
-                # create_list must be done in an after(:create) or you get Trait not registered or Factory not registered errors.
-                # this means that validators that verify presence or size > 0 in a association list will not work with this method, and you'll need to
-                # use build, not create: http://stackoverflow.com/questions/11209347/has-many-with-at-least-two-entries
-                "#{should_be_trait ? "trait #{"with_#{assc_sym}".to_sym.inspect} do; " : ''}#{should_be_trait || has_presence_validator ? '' : '#'}after(:create) do |user, evaluator|; FactoryGirl.create_list #{clas_sym.inspect}, 2; end#{should_be_trait ? '; end' : ''}#{should_be_trait ? '' : ' # commented to avoid circular reference'}"
-              elsif assc_sym != clas_sym
-                "#{should_be_trait ? "trait #{"with_#{assc_sym}".to_sym.inspect} do; " : ''}#{should_be_trait || reflection.macro == :belongs_to || has_presence_validator ? '' : '#'}association #{assc_sym.inspect}#{assc_sym != clas_sym ? ", factory: #{clas_sym.inspect}" : ''}#{should_be_trait ? '; end' : ''}#{should_be_trait || reflection.macro == :belongs_to ? '' : ' # commented to avoid circular reference'}"
-              else
-                "#{should_be_trait ? "trait #{"with_#{assc_sym}".to_sym.inspect} do; " : ''}#{should_be_trait || reflection.macro == :belongs_to || has_presence_validator ? '' : '#'}#{is_reserved?(assc_sym) ? 'self.' : ''}#{assc_sym}#{should_be_trait ? '; end' : ''}#{should_be_trait || reflection.macro == :belongs_to ? '' : ' # commented to avoid circular reference'}"
-              end
+              "#{should_be_trait ? "trait #{"with_#{assc_sym}".to_sym.inspect} do; " : ''}#{should_be_trait || reflection.macro == :belongs_to || has_presence_validator ? '' : '#'}#{is_reserved?(assc_sym) ? 'self.' : ''}#{assc_sym}#{should_be_trait ? '; end' : ''}#{should_be_trait || reflection.macro == :belongs_to ? '' : ' # commented to avoid circular reference'}"
             end
           else
             nil
