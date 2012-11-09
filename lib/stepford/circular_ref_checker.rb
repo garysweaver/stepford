@@ -4,7 +4,9 @@ module Stepford
     @@model_and_association_names = []
     @@level = 0
     @@offenders = []
+    @@circles_sorted = []
     @@circles = []
+    @@selected_offenders = []
 
     # Check refs on all models or models specified in comma delimited list in options like:
     #   Stepford.CircularRefChecker.check_refs models: 'user, post, comment'
@@ -31,9 +33,16 @@ module Stepford
       end
       puts
       puts
-      puts "Possible offenders. Either set nullable to true on these fields, or see if any of the fields above can be nullable:"
+      puts "All foreign keys involved in a circular dependency:"
       puts
       @@offenders.sort.each do |c|
+        puts "#{c[0]}.#{c[1]}"
+      end
+      puts
+      puts
+      puts "Arbitrarily chosen foreign_keys involved in a circular dependency that would break each circular dependency chain if marked as nullable. It would be a better idea to examine the full list of foreign keys and circles above, fix, then rerun:"
+      puts
+      @@selected_offenders.sort.each do |c|
         puts "#{c[0]}.#{c[1]}"
       end
 
@@ -45,6 +54,7 @@ module Stepford
 
       model_class.reflections.collect {|association_name, reflection|
         @@model_and_association_names = [] if @@level == 1
+        next unless reflection.macro == :belongs_to
         assc_sym = reflection.name.to_sym
         clas_sym = reflection.class_name.underscore.to_sym
 
@@ -55,14 +65,16 @@ module Stepford
           key = [model_class.to_s.underscore.to_sym, assc_sym]
           if @@model_and_association_names.include?(key)
             @@offenders << @@model_and_association_names.last unless @@offenders.include?(@@model_and_association_names.last)
-            # add to end
-            @@model_and_association_names << key
             short = @@model_and_association_names.dup
             # drop all preceding keys that have nothing to do with the circle
             (short.index(key)).times {short.delete_at(0)}
-            string_representation = "#{short.collect{|b|"#{b[0]}.#{b[1]}"}.join(' -> ')}"
-            #puts string_representation
-            @@circles << string_representation.to_sym unless @@circles.include?(string_representation.to_sym)
+            sorted = short.sort
+            unless @@circles_sorted.include?(sorted)
+              @@circles_sorted << sorted
+              last_key_in_circle_before_restart = short.last
+              @@selected_offenders << last_key_in_circle_before_restart unless @@selected_offenders.include?(last_key_in_circle_before_restart)
+              @@circles << "#{(short << key).collect{|b|"#{b[0]}.#{b[1]}"}.join(' -> ')}".to_sym
+            end
           else
             @@model_and_association_names << key
             check_associations(reflection.class_name.constantize)
