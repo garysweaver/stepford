@@ -95,9 +95,9 @@ Put this in your `spec/spec_helper.rb`:
 
     require 'stepford/factory_girl_rspec_helpers'
 
-Then you can just use `create`, `create_list`, `build`, `build_list`, or `build_stubbed` in your rspec tests (`create` becomes a shortcut for `::Stepford::FactoryGirl.create`, etc.), e.g.:
+Then you can just use `deep_create`, `deep_create_list`, `deep_build`, `deep_build_list`, or `deep_build_stubbed` in your rspec tests (`deep_create` becomes a shortcut for `::Stepford::FactoryGirl.create`, etc.), e.g.:
 
-    create(:foo)
+    deep_create(:foo)
 
 ##### Stopping Circular References
 
@@ -107,6 +107,12 @@ If you have a circular reference (A has NOT NULL foreign key to B that has NOT N
        [:bartender, :bar] => {on_loop: 2, set_foreign_key_to: -1},
        [:waiter, :bar] => {on_loop: 2, set_to: Waiter.find(123)},
     }
+
+##### Debugging
+
+Add somewhere after the require:
+
+    Stepford::FactoryGirl.debug = true
 
 #### CLI
 
@@ -222,7 +228,37 @@ Currently uniqueness constraints are ignored and must be handled by FactoryGirl 
 
 ###### Testing Factories
 
-See [Testing all Factories (with RSpec)][test_factories] in the FG wiki.
+See [Testing all Factories (with RSpec)][test_factories] in the FactoryGirl wiki.
+
+Here are a few rspecs that test the FactoryGirl factories and the Stepford deep_builds:
+
+    require 'spec_helper'
+    require 'stepford/factory_girl_rspec_helpers'
+
+    describe 'validate factories build' do
+      FactoryGirl.factories.each do |factory|
+        context "with factory for :#{factory.name}" do
+          subject { build(factory.name) }
+
+          it "is valid" do
+            subject.valid?.should be, subject.errors.full_messages
+          end
+        end
+      end
+    end
+
+    describe 'validate factories deep build' do
+      FactoryGirl.factories.each do |factory|
+        context "with factory for :#{factory.name}" do
+          subject { deep_build(factory.name) }
+
+          it "is valid" do
+            subject.valid?.should be, subject.errors.full_messages
+          end
+        end
+      end
+    end
+
 
 ##### Troubleshooting
 

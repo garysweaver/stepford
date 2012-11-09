@@ -8,8 +8,8 @@ Gem::Specification.new do |s|
   s.authors     = ['Gary S. Weaver']
   s.email       = ['garysweaver@gmail.com']
   s.homepage    = 'https://github.com/garysweaver/stepford'
-  s.summary     = %q{Autocreate FactoryGirl factories from models.}
-  s.description = %q{A CLI to create starter FactoryGirl factories for all of your Rails models.}
+  s.summary     = %q{FactoryGirl becomes easier and automated.}
+  s.description = %q{Has deep_* methods for automating FactoryGirl creation with required association trees and small tweaks, ActiveRecord circular required reference checker CLI, and a nice flexible FactoryGirl factories code generator CLI.}
   s.files = Dir['lib/**/*'] + ['Rakefile', 'README.md']
   s.license = 'MIT'
   s.add_dependency 'thor'

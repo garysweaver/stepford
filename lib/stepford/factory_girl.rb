@@ -31,6 +31,7 @@ module Stepford
   #   }
   module FactoryGirl
     OPTIONS = [
+      :debug,
       :stop_circular_refs
     ]
 
@@ -39,7 +40,7 @@ module Stepford
       def configure(&blk); class_eval(&blk); end
 
       def method_missing(m, *args, &block)
-        puts "starting Stepford::FactoryGirl.#{m}(#{args.inspect})"
+        puts "handling Stepford::FactoryGirl.#{m}(#{args.inspect})" if ::Stepford::FactoryGirl.debug?
 
         if [:build, :build_list, :build_stubbed, :create, :create_list].include?(m) && args && args.size > 0
           # call Stepford::FactoryGirl.* on any not null associations recursively
@@ -87,16 +88,16 @@ module Stepford
                   end
                   with_factory_options[:circular_ref_counts][circular_ref_key] = count
                   if count > 100
-                    puts "over 100 loops. need to add this to Stepford::FactoryGirl.stop_circular_refs: {#{circular_ref_key.inspect} => {on_loop: 2, set_foreign_key_to: -1}}"
+                    puts "over 100 loops. run: bundle exec stepford circular to find circular dependencies, then either change related NOT NULL columns to nullable and/or remove presence validators for related associations, or use Stepford::FactoryGirl.stop_circular_refs, e.g. #{circular_ref_key.inspect} => {on_loop: 2, set_foreign_key_to: -1}" if ::Stepford::FactoryGirl.debug?
                   end
 
                   if count >= (circ_options[:on_loop] || 1)
                     if circ_options.has_key?(:set_to)
-                      puts "Circular dependency override enabled. Returning :set_to instance to set as #{model_sym}.#{assc_sym}. instance was #{circ_options[:set_to]}"
+                      puts "Circular dependency override enabled. Returning :set_to instance to set as #{model_sym}.#{assc_sym}. instance was #{circ_options[:set_to]}" if ::Stepford::FactoryGirl.debug?
                       return circ_options[:set_to]
                     elsif circ_options.has_key?(:set_foreign_key_to)
                       # (CHILD) return hash to set on parent
-                      puts "Circular dependency override enabled. Returning :set_foreign_key_to to set as #{model_sym}.#{reflection.foreign_key}. value was '#{circ_options[:set_foreign_key_to]}'"
+                      puts "Circular dependency override enabled. Returning :set_foreign_key_to to set as #{model_sym}.#{reflection.foreign_key}. value was '#{circ_options[:set_foreign_key_to]}'" if ::Stepford::FactoryGirl.debug?
                       return {reflection.foreign_key.to_sym => circ_options[:set_foreign_key_to]}
                     end
                   end
@@ -108,10 +109,10 @@ module Stepford
                 method_options = args.last
                 blk = method_options.is_a?(Hash) ? method_args_and_options.delete(:blk) : nil
                 if blk
-                  puts "FactoryGirl.__send__(#{method_args_and_options.inspect}, &blk)"
+                  puts "FactoryGirl.__send__(#{method_args_and_options.inspect}, &blk)" if ::Stepford::FactoryGirl.debug?
                   options[assc_sym] = ::FactoryGirl.__send__(*method_args_and_options, &blk)
                 else
-                  puts "FactoryGirl.__send__(#{method_args_and_options.inspect})"
+                  puts "FactoryGirl.__send__(#{method_args_and_options.inspect})" if ::Stepford::FactoryGirl.debug?
                   options[assc_sym] = ::FactoryGirl.__send__(*method_args_and_options)
                 end
               else
@@ -138,8 +139,8 @@ module Stepford
                   # (PARENT) we passed this back as a hash which means that the child model needed to set foreign key on the parent model
                   if options[assc_sym].is_a?(Hash)
                     value = options.delete(assc_sym)
-                    options.merge!()
-                    puts "Overrode foreign key #{model_sym}.#{assc_sym} = #{value}"
+                    options.merge!(value)
+                    puts "Overrode foreign key #{model_sym}.#{assc_sym} = #{value}" if ::Stepford::FactoryGirl.debug?
                   end
                 end
               end
@@ -150,7 +151,7 @@ module Stepford
         # clean-up before sending to FactoryGirl
         (args.last).delete(:with_factory_options) if args.last.is_a?(Hash)
 
-        puts "FactoryGirl.#{m}(#{args.inspect}) (via __send__)"
+        puts "FactoryGirl.#{m}(#{args.inspect}) (via __send__)" if ::Stepford::FactoryGirl.debug?
         ::FactoryGirl.__send__(m, *args, &block)
       end
     end
