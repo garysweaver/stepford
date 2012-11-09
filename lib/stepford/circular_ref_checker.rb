@@ -26,24 +26,34 @@ module Stepford
         check_associations(model_class)
       end
 
-      puts "Circles of shame:"
+      puts "The following non-nullable foreign keys used in ActiveRecord model associations are involved in circular dependencies:"
       @@circles.sort.each do |c|
         puts
         puts "#{c}"
       end
       puts
       puts
-      puts "All foreign keys involved in a circular dependency:"
+      puts "Distinct foreign keys involved in a circular dependency:"
       puts
       @@offenders.sort.each do |c|
         puts "#{c[0]}.#{c[1]}"
       end
+
+      totals = {}
+      @@circles_sorted.each do |arr|
+        arr.each do |key|
+          totals[key] = 0 unless totals[key]
+          totals[key] = totals[key] + 1
+        end
+      end
       puts
       puts
-      puts "Arbitrarily chosen foreign_keys involved in a circular dependency that would break each circular dependency chain if marked as nullable. It would be a better idea to examine the full list of foreign keys and circles above, fix, then rerun:"
+      puts "Foreign keys by number of circular dependency chains involved with:"
       puts
-      @@selected_offenders.sort.each do |c|
-        puts "#{c[0]}.#{c[1]}"
+      totals.sort_by {|k,v| v}.reverse.each do |arr|
+        c = arr[0]
+        t = arr[1]
+        puts "#{t} (out of #{@@circles_sorted.size}): #{c[0]}.#{c[1]} -> #{c[2]}"
       end
 
       return (@@offenders.size == 0)
@@ -51,18 +61,19 @@ module Stepford
 
     def self.check_associations(model_class)
       @@level += 1
-
+      
       model_class.reflections.collect {|association_name, reflection|
         @@model_and_association_names = [] if @@level == 1
         next unless reflection.macro == :belongs_to
         assc_sym = reflection.name.to_sym
         clas_sym = reflection.class_name.underscore.to_sym
+        next_class = clas_sym.to_s.camelize.constantize
 
         # if has a foreign key, then if NOT NULL or is a presence validate, the association is required and should be output. unfortunately this could mean a circular reference that will have to be manually fixed
         has_presence_validator = model_class.validators_on(assc_sym).collect{|v|v.class}.include?(ActiveModel::Validations::PresenceValidator)
         required = reflection.foreign_key ? (has_presence_validator || model_class.columns.any?{|c| !c.null && c.name.to_sym == reflection.foreign_key.to_sym}) : false
         if required
-          key = [model_class.to_s.underscore.to_sym, assc_sym]
+          key = [model_class.table_name.to_sym, reflection.foreign_key.to_sym, next_class.table_name]
           if @@model_and_association_names.include?(key)
             @@offenders << @@model_and_association_names.last unless @@offenders.include?(@@model_and_association_names.last)
             short = @@model_and_association_names.dup
@@ -71,13 +82,11 @@ module Stepford
             sorted = short.sort
             unless @@circles_sorted.include?(sorted)
               @@circles_sorted << sorted
-              last_key_in_circle_before_restart = short.last
-              @@selected_offenders << last_key_in_circle_before_restart unless @@selected_offenders.include?(last_key_in_circle_before_restart)
               @@circles << "#{(short << key).collect{|b|"#{b[0]}.#{b[1]}"}.join(' -> ')}".to_sym
             end
           else
             @@model_and_association_names << key
-            check_associations(reflection.class_name.constantize)
+            check_associations(next_class)
           end
         end
       }

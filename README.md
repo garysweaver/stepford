@@ -125,6 +125,36 @@ Check ActiveRecord circular dependencies:
 
     bundle exec stepford circular
 
+Then it outputs the circular dependencies, e.g.:
+
+    The following non-nullable foreign keys used in ActiveRecord model associations are involved in circular dependencies:
+
+    foo.bar_id -> bar.bartender_id -> bartender.sandwich_id -> sandwich.foo_id
+
+    foo.bar_id -> bar.waiter_id -> waiter.waitress_id
+
+    waitress.waiter_id -> bar.waiter_id -> waiter.waitress_id
+
+    ...
+
+    Distinct foreign keys involved in a circular dependency:
+
+    bar.bartender_id
+    bar.waiter_id
+    bartender.sandwich_id
+    foo.bar_id
+    sandwich.foo_id
+    waiter.waitress_id
+    waitress.waiter_id
+
+    Foreign keys by number of circular dependency chains involved with:
+
+    3 (out of 6): bar.bartender_id -> bartender
+    2 (out of 6): bar.waiter_id -> waiter
+    1 (out of 6): bartender.sandwich_id -> sandwich
+    1 (out of 6): foo.bar_id -> bar
+    ...
+
 ##### Factories
 
 ###### Creating Factories
