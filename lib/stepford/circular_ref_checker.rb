@@ -1,8 +1,6 @@
 module Stepford
   class CircularRefChecker
 
-    @@model_and_association_names = []
-    @@level = 0
     @@offenders = []
     @@circles_sorted = []
     @@circles = []
@@ -24,6 +22,13 @@ module Stepford
 
       models.each do |model_class|
         check_associations(model_class)
+      end
+
+      if @@circles.size == 0
+        puts
+        puts "No circular dependencies."
+        puts
+        return true
       end
 
       puts "The following non-nullable foreign keys used in ActiveRecord model associations are involved in circular dependencies:"
@@ -55,43 +60,46 @@ module Stepford
         t = arr[1]
         puts "#{t} (out of #{@@circles_sorted.size}): #{c[0]}.#{c[1]} -> #{c[2]}"
       end
+      puts
 
-      return (@@offenders.size == 0)
+      return false
     end
 
-    def self.check_associations(model_class)
-      @@level += 1
-      
+    def self.check_associations(model_class, model_and_association_names = [])
       model_class.reflections.collect {|association_name, reflection|
-        @@model_and_association_names = [] if @@level == 1
         next unless reflection.macro == :belongs_to
+        puts "warning: #{model_class}'s association #{reflection.name}'s foreign_key was nil. can't check." unless reflection.foreign_key
         assc_sym = reflection.name.to_sym
         clas_sym = reflection.class_name.underscore.to_sym
         next_class = clas_sym.to_s.camelize.constantize
 
         # if has a foreign key, then if NOT NULL or is a presence validate, the association is required and should be output. unfortunately this could mean a circular reference that will have to be manually fixed
         has_presence_validator = model_class.validators_on(assc_sym).collect{|v|v.class}.include?(ActiveModel::Validations::PresenceValidator)
-        required = reflection.foreign_key ? (has_presence_validator || model_class.columns.any?{|c| !c.null && c.name.to_sym == reflection.foreign_key.to_sym}) : false
-        if required
-          key = [model_class.table_name.to_sym, reflection.foreign_key.to_sym, next_class.table_name]
-          if @@model_and_association_names.include?(key)
-            @@offenders << @@model_and_association_names.last unless @@offenders.include?(@@model_and_association_names.last)
-            short = @@model_and_association_names.dup
+        # note: supports composite_primary_keys gem which stores primary_key as an array
+        foreign_key_is_also_primary_key = Array.wrap(model_class.primary_key).collect{|pk|pk.to_sym}.include?(reflection.foreign_key.to_sym)
+        is_not_null_fkey_that_is_not_primary_key = model_class.columns.any?{|c| !c.null && c.name.to_sym == reflection.foreign_key.to_sym && !foreign_key_is_also_primary_key}
+
+        if is_not_null_fkey_that_is_not_primary_key || has_presence_validator
+          key = [model_class.table_name.to_sym, reflection.foreign_key.to_sym, next_class.table_name.to_sym]
+          if model_and_association_names.include?(key)
+            @@offenders << model_and_association_names.last unless @@offenders.include?(model_and_association_names.last)
+            short = model_and_association_names.dup
             # drop all preceding keys that have nothing to do with the circle
             (short.index(key)).times {short.delete_at(0)}
             sorted = short.sort
             unless @@circles_sorted.include?(sorted)
               @@circles_sorted << sorted
-              @@circles << "#{(short << key).collect{|b|"#{b[0]}.#{b[1]}"}.join(' -> ')}".to_sym
+              @@circles << "#{(short + [key]).collect{|b|"#{b[0]}.#{b[1]}"}.join(' -> ')}".to_sym
             end
           else
-            @@model_and_association_names << key
-            check_associations(next_class)
+            model_and_association_names << key
+            check_associations(next_class, model_and_association_names)
           end
         end
       }
 
-      @@level -= 1
+      model_and_association_names.pop
+      model_and_association_names
     end
   end
 end

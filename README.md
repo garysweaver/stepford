@@ -72,7 +72,7 @@ Put this in your `test/spec_helper.rb`, `spec/spec_helper.rb`, or some other fil
 
 #### Stepford::FactoryGirl
 
-Stepford::FactoryGirl acts just like FactoryGirl, but it goes through all the null=false associations in the factory and/or its presence validated associations and attempts to create/build/build_stub depending on what you called originally, but also lets you pass in an `:with_factory_options` that can contain a hash of factory name symbols to the arguments and block you'd pass to it. You specify the block using a `:blk` option with a proc/lambda (probably a lambda) to use in that method.
+Stepford::FactoryGirl acts just like FactoryGirl, but it goes through all the null=false associations for foreign keys that aren't primary keys in the factory and/or its presence validated associations and attempts to create/build/build_stub depending on what you called originally, but also lets you pass in an `:with_factory_options` that can contain a hash of factory name symbols to the arguments and block you'd pass to it. You specify the block using a `:blk` option with a proc/lambda (probably a lambda) to use in that method.
 
 If you don't specify options, it's easy (note: it is even easier with the rspec helper- see below). If Foo requires Bar and Bar requires a list of Foobars and a Barfoo, and you have factories for each of those, you'd only have to do:
 
@@ -101,14 +101,7 @@ Then you can just use `create`, `create_list`, `build`, `build_list`, or `build_
 
 ##### Stopping Circular References
 
-If you have a circular reference (A has NOT NULL foreign key to B that has NOT NULL foreign key to C that has NOT NULL foreign key to A) in the
-schema, there is a workaround. First, prepopulate one of the models involved in the interdependency chain in the database as part of test setup,
-or if the ids are NOT NULL but are not foreign key constrained (i.e. if you can enter an invalid ID into the foreign key column, which implies possible 
-referential integrity issues) then you may be able to set them with an invalid id. Take that foreign id and then use the following to ensure
-that it will set that foreign id or instance. This is done at a global level which may not work for you, but it makes it convenient to put into
-your spec/spec_helper.rb, etc. For example, let's say your bar has NOT NULL on bartender_id and waiter_id, and in turn bartender and waiter
-both have a NOT NULL bar_id, and neither enforce foreign keys. Maybe you have preloaded data for waiter somehow as the id '123', but want to set bartender to
-just use an invalid id '-1', and you want to do it when they are on their second loop. You could use:
+If you have a circular reference (A has NOT NULL foreign key to B that has NOT NULL foreign key to C that has NOT NULL foreign key to A) either via schema where the foreign key is not also a primary key of the model with the belongs_to, or there is an ActiveRecord presence validation), there is a workaround. First, prepopulate one of the models involved in the interdependency chain in the database as part of test setup, or if the ids are NOT NULL but are not foreign key constrained (i.e. if you can enter an invalid ID into the foreign key column, which implies possible referential integrity issues) then you may be able to set them with an invalid id. Take that foreign id and then use the following to ensure that it will set that foreign id or instance. This is done at a global level which may not work for you, but it makes it convenient to put into your spec/spec_helper.rb, etc. For example, let's say your bar has NOT NULL on bartender_id and waiter_id, and in turn bartender and waiter both have a NOT NULL bar_id, and neither enforce foreign keys. Maybe you have preloaded data for waiter somehow as the id '123', but want to set bartender to just use an invalid id '-1', and you want to do it when they are on their second loop. You could use:
 
     Stepford::FactoryGirl.stop_circular_refs = {
        [:bartender, :bar] => {on_loop: 2, set_foreign_key_to: -1},
@@ -121,7 +114,7 @@ Stepford has a CLI with a circular reference checker and a generator to automati
 
 ##### Refs
 
-Check ActiveRecord circular dependencies:
+Check ActiveRecord circular dependencies where the foreign key for a belongs_to is not also a primary key of the model, or there is an ActiveRecord presence validation keeping an association from being null:
 
     bundle exec stepford circular
 
@@ -129,31 +122,27 @@ Then it outputs the circular dependencies, e.g.:
 
     The following non-nullable foreign keys used in ActiveRecord model associations are involved in circular dependencies:
 
-    foo.bar_id -> bar.bartender_id -> bartender.sandwich_id -> sandwich.foo_id
+    beers.waitress_id -> waitresses.bartender_id -> bartenders.beer_id -> beers.waitress_id
 
-    foo.bar_id -> bar.waiter_id -> waiter.waitress_id
+    beers.waitress_id -> waitresses.bartender_id -> bartenders.order_id -> order.beer_id -> beers.waitress_id
 
-    waitress.waiter_id -> bar.waiter_id -> waiter.waitress_id
-
-    ...
 
     Distinct foreign keys involved in a circular dependency:
 
-    bar.bartender_id
-    bar.waiter_id
-    bartender.sandwich_id
-    foo.bar_id
-    sandwich.foo_id
-    waiter.waitress_id
-    waitress.waiter_id
+    beers.waitress_id
+    order.beer_id
+    bartenders.beer_id
+    bartenders.order_id
+    waitresses.bartender_id
+
 
     Foreign keys by number of circular dependency chains involved with:
 
-    3 (out of 6): bar.bartender_id -> bartender
-    2 (out of 6): bar.waiter_id -> waiter
-    1 (out of 6): bartender.sandwich_id -> sandwich
-    1 (out of 6): foo.bar_id -> bar
-    ...
+    2 (out of 2): beers.waitress_id -> waitresses
+    2 (out of 2): waitresses.bartender_id -> bartenders
+    1 (out of 2): order.beer_id -> beers
+    1 (out of 2): bartenders.order_id -> order
+    1 (out of 2): bartenders.beer_id -> beers
 
 ##### Factories
 

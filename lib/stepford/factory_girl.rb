@@ -66,7 +66,13 @@ module Stepford
             has_presence_validator = model_class.validators_on(assc_sym).collect{|v|v.class}.include?(::ActiveModel::Validations::PresenceValidator)
             required = reflection.foreign_key ? (has_presence_validator || model_class.columns.any?{|c| !c.null && c.name.to_sym == reflection.foreign_key.to_sym}) : false
             orig_method_args_and_options = with_factory_options ? (with_factory_options[[clas_sym, assc_sym]] || with_factory_options[clas_sym]) : nil
-            if required || orig_method_args_and_options
+            # if has a foreign key, then if NOT NULL or is a presence validate, the association is required and should be output. unfortunately this could mean a circular reference that will have to be manually fixed
+            has_presence_validator = model_class.validators_on(assc_sym).collect{|v|v.class}.include?(ActiveModel::Validations::PresenceValidator)
+            # note: supports composite_primary_keys gem which stores primary_key as an array
+            foreign_key_is_also_primary_key = Array.wrap(model_class.primary_key).collect{|pk|pk.to_sym}.include?(reflection.foreign_key.to_sym)
+            is_not_null_fkey_that_is_not_primary_key = model_class.columns.any?{|c| !c.null && c.name.to_sym == reflection.foreign_key.to_sym && !foreign_key_is_also_primary_key}
+
+            if is_not_null_fkey_that_is_not_primary_key || has_presence_validator
               circular_ref_key = [model_sym, assc_sym]
               all_opts = ::Stepford::FactoryGirl.stop_circular_refs
               if all_opts.is_a?(Hash) && all_opts.size > 0
