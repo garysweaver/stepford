@@ -1,7 +1,8 @@
 require 'factory_girl'
+require 'bigdecimal'
 
 module Stepford
-  # A wrapper for FactoryGirl that automatically recursively creates/builds/stubbed factories for null=false and/or presence validated associations.
+  # A proxy for FactoryGirl that automatically recursively creates/builds/stubbed factories for null=false and/or presence validated associations.
   #
   # Lets you specify method name and arguments/options to factory girl for associations.
   #
@@ -15,20 +16,6 @@ module Stepford
   #   }) do
   #     # the block you would send to FactoryGirl.create_list(:foo) would go here
   #   end
-  #
-  # If you have a circular reference (A has NOT NULL foreign key to B that has NOT NULL foreign key to C that has NOT NULL foreign key to A) in the
-  # schema, there is a workaround. First, prepopulate one of the models involved in the interdependency chain in the database as part of test setup,
-  # or if the ids are NOT NULL but are not foreign key constrained (i.e. if you can enter an invalid ID into the foreign key column, which implies possible 
-  # referential integrity issues) then you may be able to set them with an invalid id. Take that foreign id and then use the following to ensure
-  # that it will set that foreign id or instance. This is done at a global level which may not work for you, but it makes it convenient to put into
-  # your spec/spec_helper.rb, etc. For example, let's say your bar has NOT NULL on bartender_id and waiter_id, and in turn bartender and waiter
-  # both have a NOT NULL bar_id, and neither enforce foreign keys. Maybe you have preloaded data for waiter somehow as the id '123', but want to set bartender to
-  # just use an invalid id '-1', and you want to do it when they are on their second loop. You could use:
-  #
-  #   Stepford::FactoryGirl.stop_circular_refs = {
-  #      [:bartender, :bar] => {on_loop: 2, set_foreign_key_to: -1},
-  #      [:waiter, :bar] => {on_loop: 2, set_to: Waiter.find(123)},
-  #   }
   module FactoryGirl
     OPTIONS = [
       :debug,
@@ -36,13 +23,17 @@ module Stepford
     ]
 
     class << self
+      @@breadcrumbs = []
+
       OPTIONS.each{|o|attr_accessor o; define_method("#{o}?".to_sym){!!send("#{o}")}}
       def configure(&blk); class_eval(&blk); end
 
-      def method_missing(m, *args, &block)
-        puts "handling Stepford::FactoryGirl.#{m}(#{args.inspect})" if ::Stepford::FactoryGirl.debug?
+      def handle_factory_girl_method(m, *args, &block)
+        @@breadcrumbs << [args[0]] if ::Stepford::FactoryGirl.debug?
+        #puts "#{'  ' * @@indent}handling Stepford::FactoryGirl.#{m}(#{args.inspect})" if ::Stepford::FactoryGirl.debug?
+        puts "#{@@breadcrumbs.join('>')} start" if ::Stepford::FactoryGirl.debug?
 
-        if [:build, :build_list, :build_stubbed, :create, :create_list].include?(m) && args && args.size > 0
+        if args && args.size > 0
           # call Stepford::FactoryGirl.* on any not null associations recursively
           model_sym = args[0].to_sym
           model_class = args[0].to_s.camelize.constantize
@@ -50,100 +41,68 @@ module Stepford
           args = args.dup # need local version because we'll be dup'ing the options hash to add things to set prior to create/build
           options = args.last
           if options.is_a?(Hash)
-            options = options.dup
+            # keep them separate
+            orig_options = options
+            options = deep_dup(options)
             args[(args.size - 1)] = options # need to set the dup'd options
           else
+            # keep them separate
+            orig_options = {}
             options = {}
             args << options # need to add options to set associations
           end
 
+          if ::Stepford::FactoryGirl.debug?
+            print "#{@@breadcrumbs.join('>')} args="
+            debugargs(args)
+            puts
+          end
+
           options[:with_factory_options] = {} unless options[:with_factory_options]
           with_factory_options = options[:with_factory_options]
-          with_factory_options[:circular_ref_counts] = {} unless with_factory_options[:circular_ref_counts]
+
           model_class.reflections.each do |association_name, reflection|
             assc_sym = reflection.name.to_sym
-            next if options[assc_sym] || options[reflection.foreign_key.to_sym]
+            next if options[assc_sym] || options[reflection.foreign_key.to_sym] # || reflection.macro != :belongs_to
+            
             clas_sym = reflection.class_name.underscore.to_sym
             has_presence_validator = model_class.validators_on(assc_sym).collect{|v|v.class}.include?(::ActiveModel::Validations::PresenceValidator)
             required = reflection.foreign_key ? (has_presence_validator || model_class.columns.any?{|c| !c.null && c.name.to_sym == reflection.foreign_key.to_sym}) : false
             orig_method_args_and_options = with_factory_options ? (with_factory_options[[clas_sym, assc_sym]] || with_factory_options[clas_sym]) : nil
-            # if has a foreign key, then if NOT NULL or is a presence validate, the association is required and should be output. unfortunately this could mean a circular reference that will have to be manually fixed
+            
             has_presence_validator = model_class.validators_on(assc_sym).collect{|v|v.class}.include?(ActiveModel::Validations::PresenceValidator)
-            # note: supports composite_primary_keys gem which stores primary_key as an array
-            foreign_key_is_also_primary_key = Array.wrap(model_class.primary_key).collect{|pk|pk.to_sym}.include?(reflection.foreign_key.to_sym)
-            is_not_null_fkey_that_is_not_primary_key = model_class.columns.any?{|c| !c.null && c.name.to_sym == reflection.foreign_key.to_sym && !foreign_key_is_also_primary_key}
+            required = false
+            if reflection.macro == :belongs_to
+              # note: supports composite_primary_keys gem which stores primary_key as an array
+              foreign_key_is_also_primary_key = Array.wrap(model_class.primary_key).collect{|pk|pk.to_sym}.include?(reflection.foreign_key.to_sym)
+              is_not_null_fkey_that_is_not_primary_key = model_class.columns.any?{|c| !c.null && c.name.to_sym == reflection.foreign_key.to_sym && !foreign_key_is_also_primary_key}
+              required = is_not_null_fkey_that_is_not_primary_key || has_presence_validator
+            else
+              # no nullable metadata on column if no foreign key in this table. we'd figure out the null requirement on the column if inspecting the child model
+              required = has_presence_validator
+            end
 
-            if is_not_null_fkey_that_is_not_primary_key || has_presence_validator
-              circular_ref_key = [model_sym, assc_sym]
-              all_opts = ::Stepford::FactoryGirl.stop_circular_refs
-              if all_opts.is_a?(Hash) && all_opts.size > 0
-                circ_options = all_opts[circular_ref_key]
-                if circ_options
-                  #puts "::Stepford::FactoryGirl.stop_circular_refs[circular_ref_key]=#{circ_options.inspect}"
-                  count = with_factory_options[:circular_ref_counts][circular_ref_key]
-                  if count
-                    count += 1
-                  else
-                    count = 0
-                  end
-                  with_factory_options[:circular_ref_counts][circular_ref_key] = count
-                  if count > 100
-                    puts "over 100 loops. run: bundle exec stepford circular to find circular dependencies, then either change related NOT NULL columns to nullable and/or remove presence validators for related associations, or use Stepford::FactoryGirl.stop_circular_refs, e.g. #{circular_ref_key.inspect} => {on_loop: 2, set_foreign_key_to: -1}" if ::Stepford::FactoryGirl.debug?
-                  end
-
-                  if count >= (circ_options[:on_loop] || 1)
-                    if circ_options.has_key?(:set_to)
-                      puts "Circular dependency override enabled. Returning :set_to instance to set as #{model_sym}.#{assc_sym}. instance was #{circ_options[:set_to]}" if ::Stepford::FactoryGirl.debug?
-                      return circ_options[:set_to]
-                    elsif circ_options.has_key?(:set_foreign_key_to)
-                      # (CHILD) return hash to set on parent
-                      puts "Circular dependency override enabled. Returning :set_foreign_key_to to set as #{model_sym}.#{reflection.foreign_key}. value was '#{circ_options[:set_foreign_key_to]}'" if ::Stepford::FactoryGirl.debug?
-                      return {reflection.foreign_key.to_sym => circ_options[:set_foreign_key_to]}
-                    end
-                  end
-                end
-              end
-
+            if required
+              @@breadcrumbs << ["a:#{assc_sym}"] if ::Stepford::FactoryGirl.debug?
               if orig_method_args_and_options
                 method_args_and_options = orig_method_args_and_options.dup
                 method_options = args.last
                 blk = method_options.is_a?(Hash) ? method_args_and_options.delete(:blk) : nil
                 if blk
-                  puts "FactoryGirl.__send__(#{method_args_and_options.inspect}, &blk)" if ::Stepford::FactoryGirl.debug?
+                  #puts "#{'  ' * @@indent}FactoryGirl.__send__(#{method_args_and_options.inspect}, &blk)" if ::Stepford::FactoryGirl.debug?
                   options[assc_sym] = ::FactoryGirl.__send__(*method_args_and_options, &blk)
                 else
-                  puts "FactoryGirl.__send__(#{method_args_and_options.inspect})" if ::Stepford::FactoryGirl.debug?
+                  #puts "#{'  ' * @@indent}FactoryGirl.__send__(#{method_args_and_options.inspect})" if ::Stepford::FactoryGirl.debug?
                   options[assc_sym] = ::FactoryGirl.__send__(*method_args_and_options)
                 end
               else
                 if reflection.macro == :has_many
-                  case m
-                  when :create, :create_list
-                    options[assc_sym] = ::Stepford::FactoryGirl.create_list(clas_sym, 2, options)
-                  when :build, :build_list
-                    options[assc_sym] = ::Stepford::FactoryGirl.build_list(clas_sym, 2, options)
-                  when :build_stubbed
-                    #TODO: need to test building something stubbed that has a PresenceValidator on a has_many
-                    options[assc_sym] = ::Stepford::FactoryGirl.build_stubbed(clas_sym, options)
-                  end                
+                  options[assc_sym] = ::Stepford::FactoryGirl.create_list(clas_sym, 2, orig_options)               
                 else
-                  case m
-                  when :create, :create_list
-                    options[assc_sym] = ::Stepford::FactoryGirl.create(clas_sym, options)
-                  when :build, :build_list
-                    options[assc_sym] = ::Stepford::FactoryGirl.build(clas_sym, options)
-                  when :build_stubbed
-                    options[assc_sym] = ::Stepford::FactoryGirl.build_stubbed(clas_sym, options)
-                  end
-
-                  # (PARENT) we passed this back as a hash which means that the child model needed to set foreign key on the parent model
-                  if options[assc_sym].is_a?(Hash)
-                    value = options.delete(assc_sym)
-                    options.merge!(value)
-                    puts "Overrode foreign key #{model_sym}.#{assc_sym} = #{value}" if ::Stepford::FactoryGirl.debug?
-                  end
+                  options[assc_sym] = ::Stepford::FactoryGirl.create(clas_sym, orig_options)
                 end
               end
+              @@breadcrumbs.pop if ::Stepford::FactoryGirl.debug?
             end
           end
         end
@@ -151,8 +110,68 @@ module Stepford
         # clean-up before sending to FactoryGirl
         (args.last).delete(:with_factory_options) if args.last.is_a?(Hash)
 
-        puts "FactoryGirl.#{m}(#{args.inspect}) (via __send__)" if ::Stepford::FactoryGirl.debug?
+        if ::Stepford::FactoryGirl.debug?
+          puts "#{@@breadcrumbs.join('>')} end"
+          puts
+          print "#{@@breadcrumbs.join('>')} FactoryGirl.#{m}("
+          debugargs(args)
+          puts ")"
+          puts
+          @@breadcrumbs.pop
+        end
+
         ::FactoryGirl.__send__(m, *args, &block)
+      end
+
+      # switched to this from method_missing to avoid method trying to handle mistaken calls
+      def create(*args, &block); handle_factory_girl_method(:create, *args, &block); end
+      def create_list(*args, &block); handle_factory_girl_method(:create_list, *args, &block); end
+      def build(*args, &block); handle_factory_girl_method(:build, *args, &block); end
+      def build_list(*args, &block); handle_factory_girl_method(:build_list, *args, &block); end
+      def build_stubbed(*args, &block); handle_factory_girl_method(:build_stubbed, *args, &block); end
+      # pass everything else to FactoryGirl to try to handle (can't reflect in current version to find what it handles)
+      def method_missing(m, *args, &block); ::FactoryGirl.__send__(m, *args, &block); end
+
+      def deep_dup(o)
+        result = nil
+        if o.is_a?(Hash)
+          result = {}
+          o.keys.each do |key|
+            result[deep_dup(key)] = deep_dup(o[key])
+          end
+        elsif o.is_a?(Array)
+          result = []
+          o.each do |value|
+            result << deep_dup(value)
+          end
+        elsif [NilClass,FalseClass,TrueClass,Symbol,Numeric,Class,Module].any?{|c|o.is_a?(c)}
+          result = o
+        elsif o.is_a?(BigDecimal)
+          # ActiveSupport v3.2.8 checks duplicable? for BigDecimal by testing it, so we'll just try to dup the value itself
+          result = o
+          begin
+            result = o.dup
+          rescue TypeError
+            # can't dup
+          end
+        elsif o.is_a?(Object)
+          result = o.dup
+        else
+          result = o
+        end
+        result
+      end
+
+      def debugargs(args)
+        args.each do |arg|
+          if arg.is_a?(Hash)
+            print "{"
+            print arg.keys.collect{|key|"#{key} = (#{arg[key].class.name})"}.join(', ')
+            print "}"
+          else
+            print "#{arg.inspect},"
+          end
+        end
       end
     end
   end
