@@ -19,7 +19,7 @@ module Stepford
           excluded_attributes << reflection.foreign_key.to_sym if reflection.foreign_key
           assc_sym = reflection.name.to_sym
           clas_sym = reflection.class_name.underscore.to_sym
-          # if has a foreign key, then if NOT NULL or is a presence validate, the association is required and should be output. unfortunately this could mean a circular reference that will have to be manually fixed
+          # if has a foreign key, then if NOT NULL or is a presence validate, the association is required and should be output. unfortunately this could mean a circular reference that will have to be manually fixed          
           has_presence_validator = model_class.validators_on(assc_sym).collect{|v|v.class}.include?(ActiveModel::Validations::PresenceValidator)
           required = reflection.foreign_key ? (has_presence_validator || model_class.columns.any?{|c| !c.null && c.name.to_sym == reflection.foreign_key.to_sym}) : false
           should_be_trait = !(options[:associations] || (options[:include_required_associations] && required)) && options[:association_traits]
@@ -41,7 +41,13 @@ module Stepford
         }.compact.sort.each {|l|factory << l}
         model_class.columns.sort_by {|c|[c.name]}.each {|c|
           if !excluded_attributes.include?(c.name.to_sym) && !(c.name.downcase.end_with?('_id') && options[:exclude_all_ids]) && (options[:attributes] || !c.null)
-            factory << "#{is_reserved?(c.name) ? 'self.' : ''}#{c.name} #{Stepford::Common.value_for(c)}"
+            has_uniqueness_validator = model_class.validators_on(c.name.to_sym).collect{|v|v.class}.include?(ActiveRecord::Validations::UniquenessValidator)
+            if has_uniqueness_validator
+              #TODO: specialize for different data types
+              factory << "sequence(#{c.name.to_sym.inspect})"
+            else
+              factory << "#{is_reserved?(c.name) ? 'self.' : ''}#{c.name} #{Stepford::Common.value_for(c)}"
+            end
           elsif options[:attribute_traits]
             if c.type == :boolean
               factory << "trait #{c.name.underscore.to_sym.inspect} do; #{is_reserved?(c.name) ? 'self.' : ''}#{c.name} true; end"

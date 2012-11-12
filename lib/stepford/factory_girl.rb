@@ -18,20 +18,16 @@ module Stepford
   #   end
   module FactoryGirl
     OPTIONS = [
-      :debug,
-      :stop_circular_refs
+      :debug
     ]
 
     class << self
-      @@breadcrumbs = []
-
       OPTIONS.each{|o|attr_accessor o; define_method("#{o}?".to_sym){!!send("#{o}")}}
       def configure(&blk); class_eval(&blk); end
 
       def handle_factory_girl_method(m, *args, &block)
-        @@breadcrumbs << [args[0]] if ::Stepford::FactoryGirl.debug?
+        
         #puts "#{'  ' * @@indent}handling Stepford::FactoryGirl.#{m}(#{args.inspect})" if ::Stepford::FactoryGirl.debug?
-        puts "#{@@breadcrumbs.join('>')} start" if ::Stepford::FactoryGirl.debug?
 
         if args && args.size > 0
           # call Stepford::FactoryGirl.* on any not null associations recursively
@@ -52,14 +48,16 @@ module Stepford
             args << options # need to add options to set associations
           end
 
-          if ::Stepford::FactoryGirl.debug?
-            print "#{@@breadcrumbs.join('>')} args="
-            debugargs(args)
-            puts
-          end
-
           options[:with_factory_options] = {} unless options[:with_factory_options]
           with_factory_options = options[:with_factory_options]
+          
+          orig_options[:nesting_breadcrumbs] = [] unless orig_options[:nesting_breadcrumbs]
+          breadcrumbs = orig_options[:nesting_breadcrumbs]
+          breadcrumbs << [args[0]]
+            
+          if ::Stepford::FactoryGirl.debug?
+            puts "#{breadcrumbs.join('>')} start. args=#{debugargs(args)}"
+          end
 
           model_class.reflections.each do |association_name, reflection|
             assc_sym = reflection.name.to_sym
@@ -83,18 +81,23 @@ module Stepford
             end
 
             if required
-              @@breadcrumbs << ["a:#{assc_sym}"] if ::Stepford::FactoryGirl.debug?
+              breadcrumbs << ["a:#{assc_sym}"]
               if orig_method_args_and_options
                 method_args_and_options = orig_method_args_and_options.dup
                 method_options = args.last
                 blk = method_options.is_a?(Hash) ? method_args_and_options.delete(:blk) : nil
-                if blk
-                  #puts "#{'  ' * @@indent}FactoryGirl.__send__(#{method_args_and_options.inspect}, &blk)" if ::Stepford::FactoryGirl.debug?
-                  options[assc_sym] = ::FactoryGirl.__send__(*method_args_and_options, &blk)
-                else
-                  #puts "#{'  ' * @@indent}FactoryGirl.__send__(#{method_args_and_options.inspect})" if ::Stepford::FactoryGirl.debug?
-                  options[assc_sym] = ::FactoryGirl.__send__(*method_args_and_options)
-                end
+                begin
+                  if blk
+                    #puts "#{'  ' * @@indent}FactoryGirl.__send__(#{method_args_and_options.inspect}, &blk)" if ::Stepford::FactoryGirl.debug?
+                    options[assc_sym] = ::FactoryGirl.__send__(*method_args_and_options, &blk)
+                  else
+                    #puts "#{'  ' * @@indent}FactoryGirl.__send__(#{method_args_and_options.inspect})" if ::Stepford::FactoryGirl.debug?
+                    options[assc_sym] = ::FactoryGirl.__send__(*method_args_and_options)
+                  end
+                rescue ActiveRecord::RecordInvalid => e
+                  puts "#{breadcrumbs.join('>')}: FactoryGirl.__send__(#{method_args_and_options.inspect}): #{e}#{::Stepford::FactoryGirl.debug? ? "\n#{e.backtrace.join("\n")}" : ''}"
+                  raise e
+                 end
               else
                 if reflection.macro == :has_many
                   options[assc_sym] = ::Stepford::FactoryGirl.create_list(clas_sym, 2, orig_options)               
@@ -102,25 +105,37 @@ module Stepford
                   options[assc_sym] = ::Stepford::FactoryGirl.create(clas_sym, orig_options)
                 end
               end
-              @@breadcrumbs.pop if ::Stepford::FactoryGirl.debug?
+              breadcrumbs.pop
             end
           end
         end
 
-        # clean-up before sending to FactoryGirl
-        (args.last).delete(:with_factory_options) if args.last.is_a?(Hash)
-
-        if ::Stepford::FactoryGirl.debug?
-          puts "#{@@breadcrumbs.join('>')} end"
-          puts
-          print "#{@@breadcrumbs.join('>')} FactoryGirl.#{m}("
-          debugargs(args)
-          puts ")"
-          puts
-          @@breadcrumbs.pop
+        if defined?(breadcrumbs)
+          if ::Stepford::FactoryGirl.debug?
+            puts "#{breadcrumbs.join('>')} end"
+            puts "#{breadcrumbs.join('>')} FactoryGirl.#{m}(#{debugargs(args)})"
+          end
+          breadcrumbs.pop
         end
 
-        ::FactoryGirl.__send__(m, *args, &block)
+        # clean-up before sending to FactoryGirl
+        if args.last.is_a?(Hash)
+          (args.last).delete(:with_factory_options)
+          (args.last).delete(:nesting_breadcrumbs)
+        end
+
+        begin
+          result = ::FactoryGirl.__send__(m, *args, &block)
+        rescue ActiveRecord::RecordInvalid => e
+          puts "#{breadcrumbs.join('>')}: FactoryGirl.#{m}(#{args.inspect}): #{e}#{::Stepford::FactoryGirl.debug? ? "\n#{e.backtrace.join("\n")}" : ''}" if defined?(breadcrumbs)
+          raise e
+        end
+
+        if args.last.is_a?(Hash) && defined?(breadcrumbs) && breadcrumbs.size > 0
+          args.last[:nesting_breadcrumbs] = breadcrumbs
+        end
+
+        result
       end
 
       # switched to this from method_missing to avoid method trying to handle mistaken calls
@@ -163,15 +178,15 @@ module Stepford
       end
 
       def debugargs(args)
+        result = []
         args.each do |arg|
           if arg.is_a?(Hash)
-            print "{"
-            print arg.keys.collect{|key|"#{key} = (#{arg[key].class.name})"}.join(', ')
-            print "}"
+            result << "{#{arg.keys.collect{|key|"#{key} = (#{arg[key].class.name})"}.join(', ')}}"
           else
-            print "#{arg.inspect},"
+            result << "#{arg.inspect},"
           end
         end
+        result.join('')
       end
     end
   end
