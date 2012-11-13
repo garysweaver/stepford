@@ -129,6 +129,52 @@ Then you can just use `deep_create`, `deep_create_list`, `deep_build`, `deep_bui
 
     deep_create(:foo)
 
+##### Cleaning Up
+
+If you just want to run rspec at command-line, want to be able to create in before hooks, and don't want to mess with database cleaner, here is some code that you can add to your spec_helper to remove all model instances.
+
+THIS WILL DELETE ALL YOUR DATA! BE EXTREMELY CAREFUL:
+
+    raise "Do you really want to delete all #{Rails.env} data? I think not." unless Rails.env == 'test'
+    
+    # ActiveRecord::Base.subclasses doesn't get everything
+    ALL_MODEL_CLASSES = Dir[File.join('app','models','*.rb').to_s].collect do |filename|
+      model_name = File.basename(filename).sub(/.rb$/, '')
+      load File.join('app','models',"#{model_name}.rb")
+      model_class = model_name.camelize.constantize
+      next unless model_class.ancestors.include?(ActiveRecord::Base)
+      model_class
+    end.compact
+
+    # can run rspec instead of rake test. FactoryGirl doesn't clean up everything, and DatabaseCleaner is either too slow (truncation) or too transaction-y (transaction).
+    RSpec::Runner.configure do |config|
+      config.before(:suite) do
+        ALL_MODEL_CLASSES.each do |m|
+          begin
+            m.delete_all
+          rescue
+          end
+        end
+        ALL_MODEL_CLASSES.each do |m|
+          count = m.count
+          raise "#{m} not all deleted (found #{count})" if count > 0
+        end
+      end
+
+      config.after(:all) do
+        ALL_MODEL_CLASSES.each do |m|
+          begin
+            m.delete_all
+          rescue
+          end
+        end
+        ALL_MODEL_CLASSES.each do |m|
+          count = m.count
+          raise "#{m} not all deleted (found #{count})" if count > 0
+        end
+      end
+    end
+
 ##### Debugging
 
 Add somewhere after the require:
@@ -139,7 +185,7 @@ Add somewhere after the require:
 
 Stepford has a CLI with a circular reference checker and a generator to automatically create your factories file(s).
 
-##### Refs
+##### Circular
 
 Check ActiveRecord circular dependencies find circular chains of dependencies where foreign keys that are not primary keys of the models are all not nullable in the schema or not nullable because of ActiveRecord presence validation:
 
