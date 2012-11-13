@@ -131,17 +131,6 @@ Then you can just use `deep_create`, `deep_create_list`, `deep_build`, `deep_bui
 
     deep_create(:foo)
 
-##### Stopping Circular References
-
-If you have a circular reference (A has NOT NULL foreign key to B that has NOT NULL foreign key to C that has NOT NULL foreign key to A) either via schema where the foreign key is not also a primary key of the model with the belongs_to, or there is an ActiveRecord presence validation), there is a workaround. First, prepopulate one of the models involved in the interdependency chain in the database as part of test setup, or if the ids are NOT NULL but are not foreign key constrained (i.e. if you can enter an invalid ID into the foreign key column, which implies possible referential integrity issues) then you may be able to set them with an invalid id. Take that foreign id and then use the following to ensure that it will set that foreign id or instance. This is done at a global level which may not work for you, but it makes it convenient to put into your spec/spec_helper.rb, etc. For example, let's say your bar has NOT NULL on bartender_id and waiter_id, and in turn bartender and waiter both have a NOT NULL bar_id, and neither enforce foreign keys. Maybe you have preloaded data for waiter somehow as the id '123', but want to set bartender to just use an invalid id '-1', and you want to do it when they are on their second loop. You could use:
-
-    Stepford::FactoryGirl.stop_circular_refs = {
-       [:bartender, :bar] => {on_loop: 2, set_foreign_key_to: -1},
-       [:waiter, :bar] => {on_loop: 2, set_to: Waiter.find(123)},
-    }
-
-Leave out :on_loop or set :on_loop to 0 to use the set instead of attempting to build/create.
-
 ##### Debugging
 
 Add somewhere after the require:
@@ -154,11 +143,11 @@ Stepford has a CLI with a circular reference checker and a generator to automati
 
 ##### Refs
 
-Check ActiveRecord circular dependencies where the foreign key for a belongs_to is not also a primary key of the model, or there is an ActiveRecord presence validation keeping an association from being null:
+Check ActiveRecord circular dependencies find circular chains of dependencies where foreign keys that are not primary keys of the models are all not nullable in the schema or not nullable because of ActiveRecord presence validation:
 
     bundle exec stepford circular
 
-Then it outputs the circular dependencies, e.g.:
+Example of output:
 
     The following non-nullable foreign keys used in ActiveRecord model associations are involved in circular dependencies:
 
@@ -188,11 +177,11 @@ Then it outputs the circular dependencies, e.g.:
 
 ###### Creating Factories
 
-Autogenerate `test/factories.rb` from all model files in `app/models`:
+To autogenerate `test/factories.rb` from all model files in `app/models`:
 
     bundle exec stepford factories
 
-If you want one file per model, use `--multiple`. The default path is `test/factories`, which it assumes exists. In that directory, it will create a factory file for each model. If you want separate factory files in `spec/factories`, you'd use:
+If you want one file per model, specify `--multiple`. Use `--path` to specify the directory path or factories.rb pathname. The default path is `test/factories`, which it assumes exists. In that directory, it will create a factory file for each model. If you want separate factory files in `spec/factories`, you'd use:
 
     bundle exec stepford factories --path spec/factories --multiple
 
@@ -213,16 +202,6 @@ By default, Stepford processes all models found in `app/models`.
 Specify `--models` and a comma-delimited list of models to only output the models you specify. If you don't want to overwrite existing factory files, you should direct the output to another file and manually copy each in:
 
     bundle exec stepford factories --path spec/support/put_into_factories.rb --models foo,bar,foo_bar
-
-###### Traits
-
-To generate traits for each attribute that would be included with `--attributes`, but isn't because `--attributes` is not specified:
-
-    bundle exec stepford factories --attribute-traits
-
-To generate traits for each association that would be included with `--associations`, but isn't because `--associations` is not specified:
-
-    bundle exec stepford factories --association-traits
 
 ###### Associations
 
@@ -252,7 +231,17 @@ If associations are deemed broken, it will output proposed changes.
 
 If working with a legacy schema, you may have models with foreign_key columns that you don't have associations defined for in the model. If that is the case, we don't want to assign arbitrary integers to them and try to create a record. If that is the case, try `--exclude-all-ids`, which will exclude those ids as attributes defined in the factories and you can add associations as needed to get things working.
 
-###### How NOT NULL, and Other Database Constraints and Active Record Validations Are Handled
+###### Traits
+
+To generate traits for each attribute that would be included with `--attributes`, but isn't because `--attributes` is not specified:
+
+    bundle exec stepford factories --attribute-traits
+
+To generate traits for each association that would be included with `--associations`, but isn't because `--associations` is not specified:
+
+    bundle exec stepford factories --association-traits
+
+###### Constraints and Validations
 
 If the ActiveRecord column `null` property for the attribute is true for the attribute or foreign key for the association, or if there is a presence validator for an attribute or foreign key for the association, then that attribute or association will be defined by the default factory.
 
@@ -295,18 +284,15 @@ Here are a few rspecs that test the FactoryGirl factories and the Stepford deep_
       end
     end
 
-
 ##### Troubleshooting
 
 If you have duplicate factory definitions during Rails load, it may complain. Just move, rename, or remove the offending files and factories and retry.
 
-The CLI produces factories that use Ruby 1.9 hash syntax. If you aren't using Ruby 1.9, it may not fail during generation, but it might later when loading the factories.
+The factories CLI produces factories that use Ruby 1.9 hash syntax. If you aren't using Ruby 1.9, it may not fail during generation, but it might later when loading the factories.
 
-If you are using STI, you'll need to manually fix the value that goes into the `type` attribute, or you can remove those.
+If you are using STI, you'll need to manually fix the value that goes into the `type` attribute.
 
-Tested with postgreSQL 9.x only.
-
-If you use Stepford to create factories for existing tests and the tests fail with:
+If you use Stepford to create factories for existing tests and the tests fail with something like:
 
      ActiveRecord::StatementInvalid:
        PG::Error: ERROR:  null value in column "something_id" violates not-null constraint
@@ -316,10 +302,16 @@ or maybe:
      ActiveRecord::RecordInvalid:
        Validation failed: Item The item is required., Pricer The pricer is required., Purchased by A purchaser is required.
 
-or you might get:
+then try to use the deep_* methods to build or create.
+
+If you get:
 
     SystemStackError:
       stack level too deep
+
+then note that associations and traits can lead to circular dependencies. Trying generating factories without associations or traits (the default), and use the deep_* methods to create.
+
+If you still see the 'stack level too deep' error, use the circular CLI to find interreferencing non-nullable foreign keys and fix them.
 
 ThoughtBot's Josh Clayton provided some suggestions for this, including using methods to generate more complex object structures:
 
