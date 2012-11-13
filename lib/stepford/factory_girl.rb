@@ -18,7 +18,8 @@ module Stepford
   #   end
   module FactoryGirl
     OPTIONS = [
-      :debug
+      :debug,
+      :not_null
     ]
 
     class << self
@@ -29,7 +30,13 @@ module Stepford
         
         if args && args.size > 0
           # call Stepford::FactoryGirl.* on any not null associations recursively
-          model_class = args[0].to_s.camelize.constantize
+          model_name = args[0]
+          begin
+            model_class = model_name.to_s.camelize.constantize
+          rescue => e
+            puts "Problem in #{model_name.to_s.camelize}" if model_name
+            raise e
+          end
 
           args = args.dup # need local version because we'll be dup'ing the options hash to add things to set prior to create/build
           options = args.last
@@ -80,7 +87,7 @@ module Stepford
               required = has_presence_validator
             end
 
-            if required
+            if required || Array.wrap(::Stepford::FactoryGirl.not_null).compact.include?([model_name.to_sym, assc_sym])
               breadcrumbs << ["a:#{assc_sym}"]
               if orig_method_args_and_options
                 method_args_and_options = orig_method_args_and_options.dup
@@ -93,7 +100,7 @@ module Stepford
                     options[assc_sym] = ::FactoryGirl.__send__(*method_args_and_options)
                   end
                   to_reload << options[assc_sym]
-                rescue ActiveRecord::RecordInvalid => e
+                rescue => e
                   puts "#{breadcrumbs.join('>')}: FactoryGirl.__send__(#{method_args_and_options.inspect}): #{e}#{::Stepford::FactoryGirl.debug? ? "\n#{e.backtrace.join("\n")}" : ''}"
                   raise e
                 end
@@ -125,8 +132,9 @@ module Stepford
         end
 
         begin
+          raise "#{breadcrumbs.join('>')} - Huh? args[0] was #{args[0]}. m=#{m.inspect}, args=#{args.inspect}" if args && args.size > 1 && !(args[0].is_a?(String) || args[0].is_a?(Symbol))
           result = ::FactoryGirl.__send__(m, *args, &block)
-        rescue ActiveRecord::RecordInvalid => e
+        rescue => e
           puts "#{breadcrumbs.join('>')}: FactoryGirl.#{m}(#{args.inspect}): #{e}#{::Stepford::FactoryGirl.debug? ? "\n#{e.backtrace.join("\n")}" : ''}" if defined?(breadcrumbs)
           raise e
         end
@@ -138,7 +146,7 @@ module Stepford
           orig_options[:to_reload] << result
         else
           # ready to return the initially requested instances, so reload children with their parents, in reverse order added
-          orig_options[:to_reload].reverse.each do |i|
+          orig_options[:to_reload].each do |i|
             begin
               i.reload
             rescue => e

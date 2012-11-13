@@ -10,18 +10,27 @@ module Stepford
         model_name = File.basename(filename).sub(/.rb$/, '')
         next if included_models && !included_models.include?(model_name)
         load File.join('app','models',"#{model_name}.rb")
-        model_class = model_name.camelize.constantize
+        
+        begin
+          model_class = model_name.camelize.constantize
+        rescue => e
+          puts "Problem in #{model_name.camelize}"
+          raise e
+        end
+
         next unless model_class.ancestors.include?(ActiveRecord::Base)
         factory = (factories[model_name.to_sym] ||= [])
-        excluded_attributes = Array.wrap(model_class.primary_key).collect{|pk|pk.to_sym} + [:updated_at, :created_at, :object_id]
+        pk_syms = Array.wrap(model_class.primary_key).collect{|pk|pk.to_sym}
+        excluded_attributes = pk_syms + [:updated_at, :created_at, :object_id]
         model_class.reflections.collect {|association_name, reflection|
           (expected[reflection.class_name.underscore.to_sym] ||= []) << model_name
-          excluded_attributes << reflection.foreign_key.to_sym if reflection.foreign_key
+          fkey_sym = reflection.foreign_key.try(:to_sym)
+          excluded_attributes << fkey_sym if reflection.foreign_key && !(excluded_attributes.include?(fkey_sym))
           assc_sym = reflection.name.to_sym
           clas_sym = reflection.class_name.underscore.to_sym
           # if has a foreign key, then if NOT NULL or is a presence validate, the association is required and should be output. unfortunately this could mean a circular reference that will have to be manually fixed          
           has_presence_validator = model_class.validators_on(assc_sym).collect{|v|v.class}.include?(ActiveModel::Validations::PresenceValidator)
-          required = reflection.foreign_key ? (has_presence_validator || model_class.columns.any?{|c| !c.null && c.name.to_sym == reflection.foreign_key.to_sym}) : false
+          required = reflection.foreign_key ? (has_presence_validator || model_class.columns.any?{|c| !c.null && c.name.to_sym == fkey_sym}) : false
           should_be_trait = !(options[:associations] || (options[:include_required_associations] && required)) && options[:association_traits]
           if options[:associations] || (options[:include_required_associations] && required) || should_be_trait
             if reflection.macro == :has_many
@@ -39,12 +48,24 @@ module Stepford
             nil
           end
         }.compact.sort.each {|l|factory << l}
+
+        sequenceless_table = false
+        begin
+          sequenceless_table = true unless m.sequence_name
+        rescue => e
+          # bug in Rails 3.2.8, at least: undefined method `split' for nil:NilClass in activerecord-3.2.8/lib/active_record/connection_adapters/postgresql_adapter.rb:911:in `default_sequence_name'
+          sequenceless_table = true
+        end
+
         model_class.columns.sort_by {|c|[c.name]}.each {|c|
-          if !excluded_attributes.include?(c.name.to_sym) && !(c.name.downcase.end_with?('_id') && options[:exclude_all_ids]) && (options[:attributes] || !c.null)
+          # intentional not checking excluded_attributes/exclude_all_ids when sequenceless. it needs these for create to work.
+          if sequenceless_table && pk_syms.include?(c.name.to_sym)
+            factory << Stepford::Common.sequence_for(c)
+          elsif !excluded_attributes.include?(c.name.to_sym) && !(c.name.to_s.downcase.end_with?('_id') && options[:exclude_all_ids]) && (options[:attributes] || !c.null)
             has_uniqueness_validator = model_class.validators_on(c.name.to_sym).collect{|v|v.class}.include?(ActiveRecord::Validations::UniquenessValidator)
             if has_uniqueness_validator
               #TODO: specialize for different data types
-              factory << "sequence(#{c.name.to_sym.inspect})"
+              factory << Stepford::Common.sequence_for(c)
             else
               factory << "#{is_reserved?(c.name) ? 'self.' : ''}#{c.name} #{Stepford::Common.value_for(c)}"
             end

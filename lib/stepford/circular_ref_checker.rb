@@ -15,7 +15,14 @@ module Stepford
         model_name = File.basename(filename).sub(/.rb$/, '')
         next if included_models && !included_models.include?(model_name)
         load File.join('app','models',"#{model_name}.rb")
-        model_class = model_name.camelize.constantize
+        
+        begin
+          model_class = model_name.camelize.constantize
+        rescue => e
+          puts "Problem in #{model_name.camelize}"
+          raise e
+        end
+
         next unless model_class.ancestors.include?(ActiveRecord::Base)
         models << model_class
       end
@@ -70,7 +77,13 @@ module Stepford
         puts "warning: #{model_class}'s association #{reflection.name}'s foreign_key was nil. can't check." unless reflection.foreign_key
         assc_sym = reflection.name.to_sym
         clas_sym = reflection.class_name.underscore.to_sym
-        next_class = clas_sym.to_s.camelize.constantize
+        
+        begin
+          next_class = reflection.class_name.constantize
+        rescue => e
+          puts "Problem in #{model_class.name} with association: #{reflection.macro} #{assc_sym.inspect} which refers to class #{reflection.class_name}"
+          raise e
+        end
 
         has_presence_validator = model_class.validators_on(assc_sym).collect{|v|v.class}.include?(ActiveModel::Validations::PresenceValidator)
         required = false

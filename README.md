@@ -129,6 +129,16 @@ Then you can just use `deep_create`, `deep_create_list`, `deep_build`, `deep_bui
 
     deep_create(:foo)
 
+##### Forcing Attributes and Associations
+
+If you want to force attributes and associations to be set, use the not_null configuration setting, or hand-edit the factories.rb:
+
+    # each entry looks like [:model_name, :association_or_column_name]
+    Stepford::FactoryGirl.not_null = [
+      [:bartender, :experience],
+      [:patron, :time_entered_bar],
+    ]
+
 ##### Cleaning Up
 
 If you just want to run rspec at command-line, want to be able to create in before hooks, and don't want to mess with database cleaner, here is some code that you can add to your spec_helper to remove all model instances.
@@ -141,7 +151,12 @@ THIS WILL DELETE ALL YOUR DATA! BE EXTREMELY CAREFUL:
     ALL_MODEL_CLASSES = Dir[File.join('app','models','*.rb').to_s].collect do |filename|
       model_name = File.basename(filename).sub(/.rb$/, '')
       load File.join('app','models',"#{model_name}.rb")
-      model_class = model_name.camelize.constantize
+      begin
+        model_class = model_name.camelize.constantize
+      rescue => e
+        puts "Problem in #{model_name.camelize}"
+        raise e
+      end
       next unless model_class.ancestors.include?(ActiveRecord::Base)
       model_class
     end.compact
@@ -251,7 +266,7 @@ Specify `--models` and a comma-delimited list of models to only output the model
 
 If you use Stepford::FactoryGirl (or deep_* methods in rspec) to automatically generate factories, you may not need to generate associations, because that sets them for you. If you do choose to use associations, note that these will likely create factories with interdependence issues. When there are NOT NULLs on foreign keys and/or presence validations, etc. you can't just use `after(:create)` or `after(:build)` to set associations, and without those you can have issues with "Trait not registered" or "Factory not registered". Later versions of FactoryGirl may make this easier, and be sure to see notes from Josh down in the troubleshooting section.
 
-If you are ready to hand-edit to fix things, then copy paste stuff, rename it, etc. instead of just using Stepford::FactoryGirl (or deep_* methods in rspec), then keep reading.
+If you are ready to edit factories, copy and paste stuff, rename things, etc. instead of just using Stepford::FactoryGirl or deep_* methods in rspec, then keep reading.
 
 ####### Include Required Assocations
 
@@ -295,11 +310,22 @@ Uniqueness constraints on the model are handled by the following being generated
 
 If you have a formatting constraint, some other constraint, or don't like the format of the data in the factories, see the [Factory Girl][factory_girl] documentation to find out how to customize your factories.
 
+###### Table Sequences
+
+If a table has no sequence, each primary key will get a FactoryGirl sequence, e.g. if you had a tie table with two sequenceless primary key columns, 'a_id' and 'b_id', it will put this in the factory:
+
+    sequence(:a_id)
+    sequence(:b_id)
+
+###### Composite Primary Keys
+
+You can use the [composite_primary_keys][composite_primary_keys] gem and it should work fine.
+
 ##### Testing Factories
 
 See [Testing all Factories (with RSpec)][test_factories] in the FactoryGirl wiki.
 
-Here are a few rspecs that test the FactoryGirl factories and the Stepford deep_builds:
+Here is a version that tests the FactoryGirl factories and the Stepford deep_creates:
 
     require 'spec_helper'
     require 'stepford/factory_girl_rspec_helpers'
@@ -307,22 +333,10 @@ Here are a few rspecs that test the FactoryGirl factories and the Stepford deep_
     describe 'validate factories build' do
       FactoryGirl.factories.each do |factory|
         context "with factory for :#{factory.name}" do
-          subject { build(factory.name) }
+          subject { deep_create(factory.name) }
 
           it "is valid" do
-            subject.valid?.should be, subject.errors.full_messages
-          end
-        end
-      end
-    end
-
-    describe 'validate factories deep build' do
-      FactoryGirl.factories.each do |factory|
-        context "with factory for :#{factory.name}" do
-          subject { deep_build(factory.name) }
-
-          it "is valid" do
-            subject.valid?.should be, subject.errors.full_messages
+            subject.valid?.should be, subject.errors.full_messages.join(',')
           end
         end
       end
@@ -393,6 +407,7 @@ or referring to created objects through associations, though he said multiple ne
 
 Copyright (c) 2012 Gary S. Weaver, released under the [MIT license][lic].
 
+[composite_primary_keys]: https://github.com/drnic/composite_primary_keys
 [test_factories]: https://github.com/thoughtbot/factory_girl/wiki/Testing-all-Factories-%28with-RSpec%29
 [factory_girl]: https://github.com/thoughtbot/factory_girl/
 [lic]: http://github.com/garysweaver/stepford/blob/master/LICENSE
