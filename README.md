@@ -1,7 +1,7 @@
 Stepford
 =====
 
-Now getting started with FactoryGirl is even more simple and DRY!
+FactoryGirl = so easy now
 
 Stepford is an automatic required (non-null or presence validated) association resolver and factory generator for [FactoryGirl][factory_girl].
 
@@ -321,6 +321,8 @@ ThoughtBot's Josh Clayton provided some suggestions for this, including using me
       post.reload
     end
 
+(Note, the deep_* methods that do this automatically for you, including the reloads.)
+
 or referring to created objects through associations, though he said multiple nestings get tricky:
 
     factory :post do
@@ -340,8 +342,6 @@ or referring to created objects through associations, though he said multiple ne
 
     comment = FactoryGirl.create(:comment, :authored_by_post_author)
     comment.author == comment.post.author # true
-
-This is the reason we wrote the Stepford's Factory Girl proxy and helper rspec methods (see above). It automatically determines what needs to be set in what order and does create, create_list or build, build_list, etc. automatically.
 
 ### License
 

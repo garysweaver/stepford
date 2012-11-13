@@ -27,11 +27,8 @@ module Stepford
 
       def handle_factory_girl_method(m, *args, &block)
         
-        #puts "#{'  ' * @@indent}handling Stepford::FactoryGirl.#{m}(#{args.inspect})" if ::Stepford::FactoryGirl.debug?
-
         if args && args.size > 0
           # call Stepford::FactoryGirl.* on any not null associations recursively
-          model_sym = args[0].to_sym
           model_class = args[0].to_s.camelize.constantize
 
           args = args.dup # need local version because we'll be dup'ing the options hash to add things to set prior to create/build
@@ -54,6 +51,9 @@ module Stepford
           orig_options[:nesting_breadcrumbs] = [] unless orig_options[:nesting_breadcrumbs]
           breadcrumbs = orig_options[:nesting_breadcrumbs]
           breadcrumbs << [args[0]]
+
+          orig_options[:to_reload] = [] unless orig_options[:to_reload]
+          to_reload = orig_options[:to_reload]
             
           if ::Stepford::FactoryGirl.debug?
             puts "#{breadcrumbs.join('>')} start. args=#{debugargs(args)}"
@@ -88,16 +88,15 @@ module Stepford
                 blk = method_options.is_a?(Hash) ? method_args_and_options.delete(:blk) : nil
                 begin
                   if blk
-                    #puts "#{'  ' * @@indent}FactoryGirl.__send__(#{method_args_and_options.inspect}, &blk)" if ::Stepford::FactoryGirl.debug?
                     options[assc_sym] = ::FactoryGirl.__send__(*method_args_and_options, &blk)
                   else
-                    #puts "#{'  ' * @@indent}FactoryGirl.__send__(#{method_args_and_options.inspect})" if ::Stepford::FactoryGirl.debug?
                     options[assc_sym] = ::FactoryGirl.__send__(*method_args_and_options)
                   end
+                  to_reload << options[assc_sym]
                 rescue ActiveRecord::RecordInvalid => e
                   puts "#{breadcrumbs.join('>')}: FactoryGirl.__send__(#{method_args_and_options.inspect}): #{e}#{::Stepford::FactoryGirl.debug? ? "\n#{e.backtrace.join("\n")}" : ''}"
                   raise e
-                 end
+                end
               else
                 if reflection.macro == :has_many
                   options[assc_sym] = ::Stepford::FactoryGirl.create_list(clas_sym, 2, orig_options)               
@@ -122,6 +121,7 @@ module Stepford
         if args.last.is_a?(Hash)
           (args.last).delete(:with_factory_options)
           (args.last).delete(:nesting_breadcrumbs)
+          (args.last).delete(:to_reload)
         end
 
         begin
@@ -130,9 +130,21 @@ module Stepford
           puts "#{breadcrumbs.join('>')}: FactoryGirl.#{m}(#{args.inspect}): #{e}#{::Stepford::FactoryGirl.debug? ? "\n#{e.backtrace.join("\n")}" : ''}" if defined?(breadcrumbs)
           raise e
         end
-
+        
         if args.last.is_a?(Hash) && defined?(breadcrumbs) && breadcrumbs.size > 0
+          # still handling association/subassociation
           args.last[:nesting_breadcrumbs] = breadcrumbs
+          args.last[:to_reload] = to_reload
+          orig_options[:to_reload] << result
+        else
+          # ready to return the initially requested instances, so reload children with their parents, in reverse order added
+          orig_options[:to_reload].reverse.each do |i|
+            begin
+              i.reload
+            rescue => e
+              puts "#{i} reload failed: #{e}\n#{e.backtrace.join("\n")}" if ::Stepford::FactoryGirl.debug?
+            end
+          end
         end
 
         result
