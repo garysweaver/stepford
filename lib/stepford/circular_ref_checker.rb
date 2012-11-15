@@ -76,7 +76,6 @@ module Stepford
       model_class.reflections.collect {|association_name, reflection|
         puts "warning: #{model_class}'s association #{reflection.name}'s foreign_key was nil. can't check." unless reflection.foreign_key
         assc_sym = reflection.name.to_sym
-        clas_sym = reflection.class_name.underscore.to_sym
         
         begin
           next_class = reflection.class_name.constantize

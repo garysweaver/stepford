@@ -17,8 +17,8 @@ module Stepford
       # load Rails environment
       require './config/environment'
       # load FactoryGirl and generate factories
-      require 'stepford/factory_girl_generator'
-      exit Stepford::FactoryGirlGenerator.generate_factories(options) ? 0 : 1
+      require 'stepford/factory_girl/generator'
+      exit ::Stepford::FactoryGirl::Generator.generate_factories(options) ? 0 : 1
     end
 
     desc "circular", "check for circular refs"
@@ -28,9 +28,9 @@ module Stepford
       require './config/environment'
       # load FactoryGirl and generate factories
       require 'stepford/circular_ref_checker'
-      exit Stepford::CircularRefChecker.check_refs(options) ? 0 : 1
+      exit ::Stepford::CircularRefChecker.check_refs(options) ? 0 : 1
     end
   end
 end
 
-Stepford::CLI.start
+::Stepford::CLI.start

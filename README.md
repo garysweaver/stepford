@@ -92,6 +92,30 @@ Then run:
 
     bundle install
 
+### Configuration
+
+You don't have to use a `config/stepford.rb`, but if you have one, it will load it as needed both in CLI and via helpers, etc.
+
+If you don't use the CLI, you can just put it into your `test/test_helper.rb`, `spec/spec_helper.rb`, or similar for the deep_* methods, and with the CLI you could just put it into a Rails environment file.
+
+Debug option:
+
+    Stepford::FactoryGirl.debug = true
+
+Make Stepford think that the schema looks different than it does to allow virtual attributes, etc.:
+
+    Stepford::FactoryGirl.column_overrides = {
+      [:bartender, :experience] => {null: false},
+      [:patron, :time_entered_bar] => {null: false},
+      [:patron, :some_virtual_attribute] => {null: false, virtual: true, type: :string, limit: 5} # if you specify a virtual attribute, be sure to include virtual: true and a valid type
+    }
+
+Override options are: `:virtual`, `:type`, `:limit`, `:default`, `:null`, `:precision`, and `:scale`. Each is equivalent to their [ActiveRecord column equivalents][column_meta].
+
+You can reconfigure it at runtime during tests if you'd like, and you can just call this if you want, but it doesn't have to be loaded this way. No magic involved, but it caches a little, so faster than just doing a `load`:
+
+    Stepford::FactoryGirl.load_config(pathname)
+
 ### Usage
 
 #### Require
@@ -123,21 +147,11 @@ But, you might want to specify traits, and certain attributes or associations or
 
 Put this in your `spec/spec_helper.rb`:
 
-    require 'stepford/factory_girl_rspec_helpers'
+    require 'stepford/factory_girl/rspec_helpers'
 
 Then you can just use `deep_create`, `deep_create_list`, `deep_build`, `deep_build_list`, or `deep_build_stubbed` in your rspec tests (`deep_create` becomes a shortcut for `::Stepford::FactoryGirl.create`, etc.), e.g.:
 
     deep_create(:foo)
-
-##### Forcing Attributes and Associations
-
-If you want to force attributes and associations to be set, use the not_null configuration setting, or hand-edit the factories.rb:
-
-    # each entry looks like [:model_name, :association_or_column_name]
-    Stepford::FactoryGirl.not_null = [
-      [:bartender, :experience],
-      [:patron, :time_entered_bar],
-    ]
 
 ##### Cleaning Up
 
@@ -328,7 +342,7 @@ See [Testing all Factories (with RSpec)][test_factories] in the FactoryGirl wiki
 Here is a version that tests the FactoryGirl factories and the Stepford deep_creates:
 
     require 'spec_helper'
-    require 'stepford/factory_girl_rspec_helpers'
+    require 'stepford/factory_girl/rspec_helpers'
 
     describe 'validate factories build' do
       FactoryGirl.factories.each do |factory|
@@ -407,6 +421,7 @@ or referring to created objects through associations, though he said multiple ne
 
 Copyright (c) 2012 Gary S. Weaver, released under the [MIT license][lic].
 
+[column_meta]: http://api.rubyonrails.org/classes/ActiveRecord/ConnectionAdapters/TableDefinition.html#method-i-column
 [composite_primary_keys]: https://github.com/drnic/composite_primary_keys
 [test_factories]: https://github.com/thoughtbot/factory_girl/wiki/Testing-all-Factories-%28with-RSpec%29
 [factory_girl]: https://github.com/thoughtbot/factory_girl/
