@@ -67,11 +67,11 @@ module Stepford
           model_class.columns.each {|c|model_column_name_sym_to_column_representation[c.name.to_sym] = ::Stepford::ColumnRepresentation.new(c)}
           ::Stepford::FactoryGirl.column_overrides_tree[model_name_sym].each do |column_override_attr_sym, column_override_options|
             (model_column_name_sym_to_column_representation[column_override_attr_sym] ||= ::Stepford::ColumnRepresentation.new(column_override_attr_sym)).merge_options(column_override_options)
-          end if ::Stepford::FactoryGirl.column_overrides_tree[model_name_sym]
+          end if ::Stepford::FactoryGirl.column_overrides_tree && ::Stepford::FactoryGirl.column_overrides_tree[model_name_sym]
               
           model_column_name_sym_to_column_representation.values {|c|[c.name]}.each {|c|
             # without a sequence, FactoryGirl will need to have sequences for pkeys
-            if sequenceless_table && excluded_attribute_syms.include?(c.name.to_sym)
+            if sequenceless_table && pkey_syms.include?(c.name.to_sym)
               factory << ::Stepford::Common.sequence_for(c)
             elsif !excluded_attribute_syms_and_pkeys.include?(c.name.to_sym) && !(c.name.to_s.downcase.end_with?('_id') && options[:exclude_all_ids]) && (options[:attributes] || !c.null)
               has_uniqueness_validator = model_class.validators_on(c.name.to_sym).collect{|v|v.class}.include?(ActiveRecord::Validations::UniquenessValidator)
