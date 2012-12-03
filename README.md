@@ -76,7 +76,7 @@ But you can have it autogenerate all attributes, associations, and traits:
 
     end
 
-However, without modification, if you use the CLI to generate these you could more likely run into association interdependency problems (circular references). To fix those you could hand-edit the factories, or write methods to create more complex structures. Or, to keep it simple, just use the defaults for the factories CLI and then use the deep_* methods in your specs to automatically create dependencies as needed!
+However, without modification, if you use the CLI to generate associations, you may run into association interdependency problems (circular references). To fix those you could hand-edit the factories, or write methods to create what is needed. Or, to keep it simple, just use the defaults for the factories CLI and then use the deep_* methods in your specs to automatically create dependencies as needed!
 
 ### Setup
 
@@ -212,40 +212,6 @@ Add somewhere after the require:
 
 #### CLI
 
-Stepford has a CLI with a circular reference checker and a generator to automatically create your factories file(s).
-
-##### Circular
-
-Check ActiveRecord circular dependencies find circular chains of dependencies where foreign keys that are not primary keys of the models are all not nullable in the schema or not nullable because of ActiveRecord presence validation:
-
-    bundle exec stepford circular
-
-Example of output:
-
-    The following non-nullable foreign keys used in ActiveRecord model associations are involved in circular dependencies:
-
-    beers.waitress_id -> waitresses.bartender_id -> bartenders.beer_id -> beers.waitress_id
-
-    beers.waitress_id -> waitresses.bartender_id -> bartenders.order_id -> order.beer_id -> beers.waitress_id
-
-
-    Distinct foreign keys involved in a circular dependency:
-
-    beers.waitress_id
-    order.beer_id
-    bartenders.beer_id
-    bartenders.order_id
-    waitresses.bartender_id
-
-
-    Foreign keys by number of circular dependency chains involved with:
-
-    2 (out of 2): beers.waitress_id -> waitresses
-    2 (out of 2): waitresses.bartender_id -> bartenders
-    1 (out of 2): order.beer_id -> beers
-    1 (out of 2): bartenders.order_id -> order
-    1 (out of 2): bartenders.beer_id -> beers
-
 ##### Factories
 
 ###### Creating Factories
@@ -358,6 +324,8 @@ Here is a version that tests the FactoryGirl factories and the Stepford deep_cre
 
 ##### Troubleshooting
 
+First, please use [modelist][modelist] to help test your models and the backing schema to ensure everything is kosher.
+
 If you have duplicate factory definitions during Rails load, it may complain. Just move, rename, or remove the offending files and factories and retry.
 
 The factories CLI produces factories that use Ruby 1.9 hash syntax. If you aren't using Ruby 1.9, it may not fail during generation, but it might later when loading the factories.
@@ -374,7 +342,25 @@ or maybe:
      ActiveRecord::RecordInvalid:
        Validation failed: Item The item is required., Pricer The pricer is required., Purchased by A purchaser is required.
 
-then try to use the deep_* methods to build or create.
+then try to use the deep_* methods to build or create. If still you get an error like:
+
+     ActiveRecord::StatementInvalid:
+       PG::Error: ERROR:  null value in column "something_id" violates not-null constraint
+       : INSERT INTO "foobars"
+
+ensure that the belongs_to association on the model (e.g. Foobar) is using the proper column name. It may need to explicitly set the `:foreign_key` option.
+
+Stepford needs some help fixing factories for some validations, for example, if attribute foobar on SomeModel can only be "foo" or "bar", then you may get:
+
+     ActiveRecord::RecordInvalid:
+       Validation failed: SomeModel invalid foobar Test Foobar (...)
+
+In which case you need to hand-edit the some_model factory to set the foobar attribute to "foo" or "bar". Keep in mind that if you have a default set for it in the schema, that will be set as part of stepford factories file generation. You may also want to set default values in your models like this if you can't set a default value in the column in the DB schema itself like the example in [this answer][set_default_values] in StackOverflow:
+
+    after_initialize :init
+    def init
+      self.foobar = 'foo'
+    end
 
 If you get:
 
@@ -382,8 +368,6 @@ If you get:
       stack level too deep
 
 then note that associations and traits can lead to circular dependencies. Trying generating factories without associations or traits (the default), and use the deep_* methods to create.
-
-If you still see the 'stack level too deep' error, use the circular CLI to find interreferencing non-nullable foreign keys and fix them.
 
 ThoughtBot's Josh Clayton provided some suggestions for this, including using methods to generate more complex object structures:
 
@@ -421,6 +405,8 @@ or referring to created objects through associations, though he said multiple ne
 
 Copyright (c) 2012 Gary S. Weaver, released under the [MIT license][lic].
 
+[set_default_values]: http://stackoverflow.com/questions/328525/what-is-the-best-way-to-set-default-values-in-activerecord/5127684#5127684
+[modelist]: https://github.com/garysweaver/modelist/
 [column_meta]: http://api.rubyonrails.org/classes/ActiveRecord/ConnectionAdapters/TableDefinition.html#method-i-column
 [composite_primary_keys]: https://github.com/drnic/composite_primary_keys
 [test_factories]: https://github.com/thoughtbot/factory_girl/wiki/Testing-all-Factories-%28with-RSpec%29

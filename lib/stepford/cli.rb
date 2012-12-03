@@ -20,16 +20,6 @@ module Stepford
       require 'stepford/factory_girl/generator'
       exit ::Stepford::FactoryGirl::Generator.generate_factories(options) ? 0 : 1
     end
-
-    desc "circular", "check for circular refs"
-    method_option :models, :desc => "A comma delimited list of only the models you want to include"
-    def circular()
-      # load Rails environment
-      require './config/environment'
-      # load FactoryGirl and generate factories
-      require 'stepford/circular_ref_checker'
-      exit ::Stepford::CircularRefChecker.check_refs(options) ? 0 : 1
-    end
   end
 end
 

@@ -9,7 +9,7 @@ Gem::Specification.new do |s|
   s.email       = ['garysweaver@gmail.com']
   s.homepage    = 'https://github.com/garysweaver/stepford'
   s.summary     = %q{FactoryGirl becomes easier and automated.}
-  s.description = %q{Has deep_* methods for automating FactoryGirl creation with required association trees and small tweaks, ActiveRecord circular required reference checker CLI, and a nice flexible FactoryGirl factories code generator CLI.}
+  s.description = %q{Automates FactoryGirl deep creation of models and their required associations avoiding circulars and provides a generator for FactoryGirl factories that reflects on models.}
   s.files = Dir['lib/**/*'] + ['Rakefile', 'README.md']
   s.license = 'MIT'
   s.add_dependency 'thor'

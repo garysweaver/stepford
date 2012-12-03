@@ -61,7 +61,12 @@ module Stepford
           model_class.reflections.each do |association_name, reflection|
             assc_sym = reflection.name.to_sym
             next if options[assc_sym] || options[reflection.foreign_key.to_sym] # || reflection.macro != :belongs_to
-            
+            begin
+              reflection.class_name
+            rescue
+              puts "#{model_class.name}.#{association_name} failed when attempting to call reflection's class_name method, so skipped association"
+              next
+            end
             clas_sym = reflection.class_name.underscore.to_sym
             has_presence_validator = model_class.validators_on(assc_sym).collect{|v|v.class}.include?(::ActiveModel::Validations::PresenceValidator)
             required = reflection.foreign_key ? (has_presence_validator || model_class.columns.any?{|c| !c.null && c.name.to_sym == reflection.foreign_key.to_sym}) : false

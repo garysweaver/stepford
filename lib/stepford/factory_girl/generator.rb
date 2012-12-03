@@ -29,6 +29,12 @@ module Stepford
           excluded_attribute_syms = [:updated_at, :created_at, :object_id]
           excluded_attribute_syms_and_pkeys = pkey_syms + [:updated_at, :created_at, :object_id]
           model_class.reflections.collect {|association_name, reflection|
+            begin
+              reflection.class_name
+            rescue
+              puts "#{model_class.name}.#{association_name} failed when attempting to call reflection's class_name method, so skipped association"
+              next
+            end
             (expected[reflection.class_name.underscore.to_sym] ||= []) << model_name_sym
             fkey_sym = reflection.foreign_key.try(:to_sym)
             excluded_attribute_syms_and_pkeys << fkey_sym if reflection.foreign_key && !(excluded_attribute_syms_and_pkeys.include?(fkey_sym))
