@@ -89,7 +89,7 @@ module Stepford
               if orig_method_args_and_options
                 method_args_and_options = orig_method_args_and_options.dup
                 method_options = args.last
-                blk = method_options.is_a?(Hash) ? method_args_and_options.delete(:blk) : nil
+                blk = method_options.is_a?(Hash) ? method_options.delete(:blk) : nil
                 begin
                   if blk
                     options[assc_sym] = ::FactoryGirl.__send__(*method_args_and_options, &blk)
